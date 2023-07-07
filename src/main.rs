@@ -120,7 +120,7 @@ impl SimpleComponent for AppModel {
 }
 
 fn main() {
-    let app = RelmApp::new("relm4.test.simple_manual");
+    let app = RelmApp::new("draft.mullvadwaita");
     relm4_icons::initialize_icons();
     app.run::<AppModel>(ConnectionState::Disconnected);
 }
