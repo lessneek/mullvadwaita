@@ -91,7 +91,7 @@ impl AsyncComponent for AppModel {
 
                         gtk::Button {
                             #[track = "model.changed(AppModel::status())"]
-                            set_visible: model.status == Connected,
+                            set_visible: matches!(model.status, Connected | Connecting),
                             connect_clicked => AppInput::Reconnect,
                             set_css_classes: &["suggested-action"],
                             set_icon_name: icon_name::REFRESH_LARGE
