@@ -6,7 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-relm4 = { version = "0.6.0", features = ["libadwaita"] }
-relm4-components = "0.6.0"
-relm4-icons = { version = "0.6.0", features = ["refresh-large"] }
-tracker = "*"
+adw = { version = "0.4", optional = true, package = "libadwaita" }
+gtk = { version = "0.6", package = "gtk4" }
+relm4 = { version = "0.6", features = ["libadwaita"] }
+relm4-components = "0.6"
+relm4-icons = { version = "0.6", features = ["refresh-large"] }
+tracker = "0.2"
+tokio = { version = "1.28", features = ["time"] }

@@ -716,9 +716,12 @@ dependencies = [
 name = "mullvadwaita"
 version = "0.1.0"
 dependencies = [
+ "gtk4",
+ "libadwaita",
  "relm4",
  "relm4-components",
  "relm4-icons",
+ "tokio",
  "tracker",
 ]
 

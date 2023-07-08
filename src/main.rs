@@ -1,11 +1,20 @@
-use gtk::prelude::{ButtonExt, GtkWindowExt};
-use relm4::gtk::traits::{OrientableExt, WidgetExt};
-use relm4::{adw, gtk, ComponentParts, ComponentSender, RelmApp, RelmWidgetExt, SimpleComponent};
+use std::time::Duration;
+
+use relm4::{
+    adw,
+    component::{AsyncComponent, AsyncComponentParts},
+    gtk::{
+        prelude::{ButtonExt, GtkWindowExt},
+        traits::{OrientableExt, WidgetExt},
+        Align::*,
+    },
+    loading_widgets::LoadingWidgets,
+    view, AsyncComponentSender, RelmApp, RelmWidgetExt,
+};
 
 use relm4_icons::icon_name;
 
-use gtk::Align::*;
-use ConnectionState::*;
+use Status::*;
 
 #[derive(Debug)]
 enum AppInput {
@@ -14,7 +23,7 @@ enum AppInput {
 }
 
 #[derive(PartialEq, Debug)]
-enum ConnectionState {
+enum Status {
     Connected,
     Disconnected,
     Connecting,
@@ -22,21 +31,18 @@ enum ConnectionState {
 
 #[tracker::track]
 struct AppModel {
-    state: ConnectionState,
+    status: Status,
 }
 
-#[relm4::component]
-impl SimpleComponent for AppModel {
+#[relm4::component(async)]
+impl AsyncComponent for AppModel {
+    type Init = Status;
     type Input = AppInput;
     type Output = ();
-    type Init = ConnectionState;
+    type CommandOutput = ();
 
     view! {
         adw::Window {
-            set_title: Some("Mullvadwaita"),
-            set_default_width: 300,
-            set_default_height: 600,
-
             gtk::Box {
                 set_orientation: gtk::Orientation::Vertical,
 
@@ -44,10 +50,11 @@ impl SimpleComponent for AppModel {
 
                 gtk::Box {
                     set_orientation: gtk::Orientation::Vertical,
+                    // set_width_request: 300,
 
                     gtk::Label {
-                        #[track = "model.changed(AppModel::state())"]
-                        set_label: &format!("State: {:?}", model.state),
+                        #[track = "model.changed(AppModel::status())"]
+                        set_label: &format!("State: {:?}", model.status),
                         set_margin_all: 5,
                     },
 
@@ -62,18 +69,18 @@ impl SimpleComponent for AppModel {
                         gtk::Button {
                             set_hexpand: true,
 
-                            #[track = "model.changed(AppModel::state())"]
+                            #[track = "model.changed(AppModel::status())"]
                             set_label: {
-                                match model.state {
+                                match model.status {
                                     Disconnected => "Secure my connection",
                                     Connected => "Disconnect",
                                     Connecting => "Cancel"
                                 }
                             },
 
-                            #[track = "model.changed(AppModel::state())"]
+                            #[track = "model.changed(AppModel::status())"]
                             set_css_classes: {
-                                match model.state {
+                                match model.status {
                                     Disconnected => &["suggested-action"],
                                     Connected | Connecting => &["destructive-action"],
                                 }
@@ -83,8 +90,8 @@ impl SimpleComponent for AppModel {
                         },
 
                         gtk::Button {
-                            #[track = "model.changed(AppModel::state())"]
-                            set_visible: model.state == Connected,
+                            #[track = "model.changed(AppModel::status())"]
+                            set_visible: model.status == Connected,
                             connect_clicked => AppInput::Reconnect,
                             set_css_classes: &["suggested-action"],
                             set_icon_name: icon_name::REFRESH_LARGE
@@ -95,26 +102,52 @@ impl SimpleComponent for AppModel {
         }
     }
 
-    fn init(
-        state: Self::Init,
-        root: &Self::Root,
-        sender: ComponentSender<Self>,
-    ) -> ComponentParts<Self> {
-        let model = AppModel { state, tracker: 0 };
-        let widgets = view_output!();
+    fn init_loading_widgets(root: &mut Self::Root) -> Option<LoadingWidgets> {
+        view! {
+            #[local_ref]
+            root {
+                set_title: Some("Mullvadwaita"),
+                set_default_size: (400, 600),
 
-        ComponentParts { model, widgets }
+                // This will be removed automatically by
+                // LoadingWidgets when the full view has loaded
+                #[name(spinner)]
+                gtk::Spinner {
+                    start: (),
+                    set_halign: gtk::Align::Center,
+                }
+            }
+        }
+        Some(LoadingWidgets::new(root, spinner))
     }
 
-    fn update(&mut self, message: Self::Input, _sender: ComponentSender<Self>) {
+    async fn init(
+        status: Self::Init,
+        root: Self::Root,
+        sender: AsyncComponentSender<Self>,
+    ) -> AsyncComponentParts<Self> {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        let model = AppModel { status, tracker: 0 };
+        let widgets = view_output!();
+
+        AsyncComponentParts { model, widgets }
+    }
+
+    async fn update(
+        &mut self,
+        message: Self::Input,
+        _sender: AsyncComponentSender<Self>,
+        _root: &Self::Root,
+    ) {
         self.reset();
 
-        self.set_state(match message {
-            AppInput::SwitchConnection => match self.get_state() {
+        self.set_status(match message {
+            AppInput::SwitchConnection => match self.get_status() {
                 Connected | Connecting => Disconnected,
                 Disconnected => Connected,
             },
-            AppInput::Reconnect => ConnectionState::Connecting,
+            AppInput::Reconnect => Status::Connecting,
         })
     }
 }
@@ -122,5 +155,5 @@ impl SimpleComponent for AppModel {
 fn main() {
     let app = RelmApp::new("draft.mullvadwaita");
     relm4_icons::initialize_icons();
-    app.run::<AppModel>(ConnectionState::Disconnected);
+    app.run_async::<AppModel>(Status::Disconnected);
 }
