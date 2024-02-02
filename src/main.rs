@@ -1,20 +1,23 @@
-use std::time::Duration;
+mod mullvad;
+
+use log::debug;
 
 use relm4::{
     adw,
-    component::{AsyncComponent, AsyncComponentParts},
+    component::Component,
     gtk::{
         prelude::{ButtonExt, GtkWindowExt},
         traits::{OrientableExt, WidgetExt},
         Align::*,
     },
-    loading_widgets::LoadingWidgets,
-    view, AsyncComponentSender, RelmApp, RelmWidgetExt,
+    ComponentParts, ComponentSender, RelmApp, RelmWidgetExt,
 };
 
 use relm4_icons::icon_name;
 
-use Status::*;
+use futures::FutureExt;
+
+use mullvad::Status::{self, *};
 
 #[derive(Debug)]
 enum AppInput {
@@ -22,11 +25,9 @@ enum AppInput {
     Reconnect,
 }
 
-#[derive(PartialEq, Debug)]
-enum Status {
-    Connected,
-    Disconnected,
-    Connecting,
+#[derive(Debug)]
+enum AppMsg {
+    StatusChanged(Status),
 }
 
 #[tracker::track]
@@ -34,15 +35,18 @@ struct AppModel {
     status: Status,
 }
 
-#[relm4::component(async)]
-impl AsyncComponent for AppModel {
-    type Init = Status;
+#[relm4::component]
+impl Component for AppModel {
+    type Init = ();
     type Input = AppInput;
     type Output = ();
-    type CommandOutput = ();
+    type CommandOutput = AppMsg;
 
     view! {
         adw::Window {
+            set_title: Some("Mullvadwaita"),
+            set_default_size: (300, 600),
+
             gtk::Box {
                 set_orientation: gtk::Orientation::Vertical,
 
@@ -50,12 +54,12 @@ impl AsyncComponent for AppModel {
 
                 gtk::Box {
                     set_orientation: gtk::Orientation::Vertical,
-                    // set_width_request: 300,
 
                     gtk::Label {
                         #[track = "model.changed(AppModel::status())"]
-                        set_label: &format!("State: {:?}", model.status),
+                        set_label: &format!("{:?}", model.status),
                         set_margin_all: 5,
+                        add_css_class: "title-1"
                     },
 
                     gtk::Box {
@@ -67,6 +71,7 @@ impl AsyncComponent for AppModel {
                         set_width_request: 300,
 
                         gtk::Button {
+                            connect_clicked => AppInput::SwitchConnection,
                             set_hexpand: true,
 
                             #[track = "model.changed(AppModel::status())"]
@@ -74,7 +79,8 @@ impl AsyncComponent for AppModel {
                                 match model.status {
                                     Disconnected => "Secure my connection",
                                     Connected => "Disconnect",
-                                    Connecting => "Cancel"
+                                    Connecting => "Cancel",
+                                    _ => "_"
                                 }
                             },
 
@@ -83,16 +89,20 @@ impl AsyncComponent for AppModel {
                                 match model.status {
                                     Disconnected => &["suggested-action"],
                                     Connected | Connecting => &["destructive-action"],
+                                    _ => &[]
                                 }
                             },
 
-                            connect_clicked => AppInput::SwitchConnection
+                            #[track = "model.changed(AppModel::status())"]
+                            set_visible: model.status != WaitingForService,
                         },
 
                         gtk::Button {
+                            connect_clicked => AppInput::Reconnect,
+
                             #[track = "model.changed(AppModel::status())"]
                             set_visible: matches!(model.status, Connected | Connecting),
-                            connect_clicked => AppInput::Reconnect,
+
                             set_css_classes: &["suggested-action"],
                             set_icon_name: icon_name::REFRESH_LARGE
                         },
@@ -102,58 +112,76 @@ impl AsyncComponent for AppModel {
         }
     }
 
-    fn init_loading_widgets(root: &mut Self::Root) -> Option<LoadingWidgets> {
-        view! {
-            #[local_ref]
-            root {
-                set_title: Some("Mullvadwaita"),
-                set_default_size: (400, 600),
+    fn init(
+        _: Self::Init,
+        root: &Self::Root,
+        sender: ComponentSender<Self>,
+    ) -> ComponentParts<Self> {
+        sender.command(|out, shutdown| {
+            shutdown
+                // Performs this operation until a shutdown is triggered
+                .register(async move {
+                    let mut status_rx = mullvad::watch();
 
-                // This will be removed automatically by
-                // LoadingWidgets when the full view has loaded
-                #[name(spinner)]
-                gtk::Spinner {
-                    start: (),
-                    set_halign: gtk::Align::Center,
-                }
-            }
-        }
-        Some(LoadingWidgets::new(root, spinner))
-    }
+                    debug!("Listening for status updates...");
 
-    async fn init(
-        status: Self::Init,
-        root: Self::Root,
-        sender: AsyncComponentSender<Self>,
-    ) -> AsyncComponentParts<Self> {
-        tokio::time::sleep(Duration::from_secs(1)).await;
+                    while (status_rx.changed().await).is_ok() {
+                        let status = *status_rx.borrow_and_update();
+                        debug!("Status changed: {:?}", status);
+                        out.send(AppMsg::StatusChanged(status)).unwrap();
+                    }
 
-        let model = AppModel { status, tracker: 0 };
+                    debug!("Status updates stopped.");
+                })
+                // Perform task until a shutdown interrupts it
+                .drop_on_shutdown()
+                // Wrap into a `Pin<Box<Future>>` for return
+                .boxed()
+        });
+
+        let model = AppModel {
+            status: WaitingForService,
+            tracker: 0,
+        };
         let widgets = view_output!();
 
-        AsyncComponentParts { model, widgets }
+        ComponentParts { model, widgets }
     }
 
-    async fn update(
-        &mut self,
-        message: Self::Input,
-        _sender: AsyncComponentSender<Self>,
-        _root: &Self::Root,
-    ) {
+    fn update(&mut self, message: Self::Input, _sender: ComponentSender<Self>, _root: &Self::Root) {
         self.reset();
 
         self.set_status(match message {
             AppInput::SwitchConnection => match self.get_status() {
                 Connected | Connecting => Disconnected,
                 Disconnected => Connected,
+                WaitingForService => WaitingForService,
             },
             AppInput::Reconnect => Status::Connecting,
         })
     }
+
+    fn update_cmd(
+        &mut self,
+        message: Self::CommandOutput,
+        _sender: ComponentSender<Self>,
+        _root: &Self::Root,
+    ) {
+        match message {
+            AppMsg::StatusChanged(status) => self.set_status(status),
+        }
+    }
 }
 
-fn main() {
-    let app = RelmApp::new("draft.mullvadwaita");
-    relm4_icons::initialize_icons();
-    app.run_async::<AppModel>(Status::Disconnected);
+#[tokio::main]
+async fn main() {
+    simple_logger::SimpleLogger::new().init().unwrap();
+
+    debug!("mullvadwaita starting...");
+
+    tokio::task::spawn_blocking(|| {
+        let app = RelmApp::new("draft.mullvadwaita");
+        relm4_icons::initialize_icons();
+        app.run::<AppModel>(());
+    });
 }
