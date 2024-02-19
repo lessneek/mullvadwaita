@@ -8,14 +8,19 @@ edition = "2021"
 [dependencies]
 adw = { version = "*", optional = true, package = "libadwaita" }
 gtk = { version = "*", package = "gtk4" }
-relm4 = { version = "*", features = ["all"] }
-relm4-components = "*"
-relm4-icons = { version = "*", features = ["refresh-large"] }
-tracker = "*"
+relm4 = { version = "0.6.2", features = ["all"] }
+relm4-components = "0.6.2"
+relm4-icons = { version = "0.6.0", features = ["refresh-large"] }
+tracker = "0.2.1"
 
-futures = "*"
-futures-util = "*"
+futures = "0.3.30"
+futures-util = "0.3.30"
 
-tokio = { version = "*", features = ["rt-multi-thread", "full"] }
-log = { version = "*", features = ["std", "max_level_trace"] }
-simple_logger = "*"
+tokio = { version = "1.36.0", features = ["rt-multi-thread", "full"] }
+log = { version = "0.4.20", features = ["std", "max_level_trace"] }
+simple_logger = "4.3.3"
+anyhow = "1.0.79"
+smart-default = "0.7.1"
+
+mullvad-management-interface = { path = "./mullvadvpn-app/mullvad-management-interface" }
+mullvad-types = { path = "./mullvadvpn-app/mullvad-types"}

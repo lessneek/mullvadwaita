@@ -2,6 +2,7 @@ mod mullvad;
 
 use log::debug;
 
+use mullvad_types::states::TunnelState;
 use relm4::{
     adw,
     component::Component,
@@ -17,7 +18,8 @@ use relm4_icons::icon_name;
 
 use futures::FutureExt;
 
-use mullvad::Status::{self, *};
+use mullvad::Event;
+use smart_default::SmartDefault;
 
 #[derive(Debug)]
 enum AppInput {
@@ -27,12 +29,87 @@ enum AppInput {
 
 #[derive(Debug)]
 enum AppMsg {
-    StatusChanged(Status),
+    DaemonEvent(Event),
 }
 
 #[tracker::track]
+#[derive(SmartDefault)]
 struct AppModel {
-    status: Status,
+    #[no_eq]
+    daemon_state: DaemonState,
+    main_vm: MainViewModel,
+}
+
+#[tracker::track]
+#[derive(SmartDefault, PartialEq)]
+struct MainViewModel {
+    state_label: String,
+    connection_button_label: &'static str,
+    connection_button_css: &'static [&'static str],
+    is_daemon_connected: bool,
+    is_tunnel_connecting_or_connected: bool,
+}
+
+#[derive(Debug, SmartDefault)]
+enum DaemonState {
+    Connected {
+        tunnel_state: TunnelState,
+    },
+    #[default]
+    Connecting,
+}
+
+impl AppModel {
+    fn update_view_models(&mut self) {
+        match &self.daemon_state {
+            DaemonState::Connected { tunnel_state } => {
+                self.main_vm.is_daemon_connected = true;
+                match tunnel_state {
+                    TunnelState::Connected { endpoint, .. } => {
+                        self.main_vm.set_state_label(format!("Connected: {}", endpoint));
+                        self.main_vm.set_is_tunnel_connecting_or_connected(true);
+                        self.main_vm.set_connection_button_label("Disconnect");
+                    }
+                    TunnelState::Connecting { endpoint, .. } => {
+                        self.main_vm.set_state_label(format!("Connecting: {}", endpoint));
+                        self.main_vm.set_is_tunnel_connecting_or_connected(true);
+                        self.main_vm.set_connection_button_label("Cancel");
+                    }
+                    TunnelState::Disconnected { .. } => {
+                        self.main_vm.set_state_label("Disconnected".to_string());
+                        self.main_vm.set_is_tunnel_connecting_or_connected(false);
+                        self.main_vm
+                            .set_connection_button_label("Secure my connection");
+                    }
+                    TunnelState::Disconnecting(_) => {
+                        self.main_vm.set_state_label("Disconnecting...".to_string());
+                    }
+                    TunnelState::Error(state) => {
+                        self.main_vm.set_state_label(format!("Error: {:?}", state));
+                    }
+                }
+            }
+            DaemonState::Connecting => {
+                self.main_vm.is_daemon_connected = false;
+                self.main_vm
+                    .set_state_label("Connecting to daemon...".to_string());
+            }
+        }
+
+        self.main_vm.set_connection_button_css(
+            if let DaemonState::Connected { tunnel_state } = &self.daemon_state {
+                match tunnel_state {
+                    TunnelState::Disconnected { .. } => &["suggested-action"],
+                    TunnelState::Connected { .. } | TunnelState::Connecting { .. } => {
+                        &["destructive-action"]
+                    }
+                    _ => &[],
+                }
+            } else {
+                &[]
+            },
+        );
+    }
 }
 
 #[relm4::component]
@@ -56,13 +133,16 @@ impl Component for AppModel {
                     set_orientation: gtk::Orientation::Vertical,
 
                     gtk::Label {
-                        #[track = "model.changed(AppModel::status())"]
-                        set_label: &format!("{:?}", model.status),
+                        #[track = "model.main_vm.changed(MainViewModel::state_label())"]
+                        set_label: &model.main_vm.state_label,
                         set_margin_all: 5,
                         add_css_class: "title-1"
                     },
 
                     gtk::Box {
+                        #[track = "model.changed(AppModel::daemon_state())"]
+                        set_visible: model.main_vm.is_daemon_connected,
+
                         add_css_class: "linked",
                         set_margin_all: 20,
                         set_halign: Center,
@@ -74,34 +154,18 @@ impl Component for AppModel {
                             connect_clicked => AppInput::SwitchConnection,
                             set_hexpand: true,
 
-                            #[track = "model.changed(AppModel::status())"]
-                            set_label: {
-                                match model.status {
-                                    Disconnected => "Secure my connection",
-                                    Connected => "Disconnect",
-                                    Connecting => "Cancel",
-                                    _ => "_"
-                                }
-                            },
+                            #[track = "model.main_vm.changed(MainViewModel::connection_button_label())"]
+                            set_label: model.main_vm.connection_button_label,
 
-                            #[track = "model.changed(AppModel::status())"]
-                            set_css_classes: {
-                                match model.status {
-                                    Disconnected => &["suggested-action"],
-                                    Connected | Connecting => &["destructive-action"],
-                                    _ => &[]
-                                }
-                            },
-
-                            #[track = "model.changed(AppModel::status())"]
-                            set_visible: model.status != WaitingForService,
+                            #[track = "model.main_vm.changed(MainViewModel::connection_button_css())"]
+                            set_css_classes: model.main_vm.connection_button_css,
                         },
 
                         gtk::Button {
                             connect_clicked => AppInput::Reconnect,
 
-                            #[track = "model.changed(AppModel::status())"]
-                            set_visible: matches!(model.status, Connected | Connecting),
+                            #[track = "model.changed(AppModel::daemon_state())"]
+                            set_visible: model.main_vm.is_tunnel_connecting_or_connected,
 
                             set_css_classes: &["suggested-action"],
                             set_icon_name: icon_name::REFRESH_LARGE
@@ -121,14 +185,13 @@ impl Component for AppModel {
             shutdown
                 // Performs this operation until a shutdown is triggered
                 .register(async move {
-                    let mut status_rx = mullvad::watch();
+                    let mut event_rx = mullvad::watch();
 
                     debug!("Listening for status updates...");
 
-                    while (status_rx.changed().await).is_ok() {
-                        let status = *status_rx.borrow_and_update();
-                        debug!("Status changed: {:?}", status);
-                        out.send(AppMsg::StatusChanged(status)).unwrap();
+                    while let Some(event) = event_rx.recv().await {
+                        debug!("Daemon event: {:?}", event);
+                        out.send(AppMsg::DaemonEvent(event)).unwrap();
                     }
 
                     debug!("Status updates stopped.");
@@ -139,10 +202,7 @@ impl Component for AppModel {
                 .boxed()
         });
 
-        let model = AppModel {
-            status: WaitingForService,
-            tracker: 0,
-        };
+        let model = AppModel::default();
         let widgets = view_output!();
 
         ComponentParts { model, widgets }
@@ -151,14 +211,10 @@ impl Component for AppModel {
     fn update(&mut self, message: Self::Input, _sender: ComponentSender<Self>, _root: &Self::Root) {
         self.reset();
 
-        self.set_status(match message {
-            AppInput::SwitchConnection => match self.get_status() {
-                Connected | Connecting => Disconnected,
-                Disconnected => Connected,
-                WaitingForService => WaitingForService,
-            },
-            AppInput::Reconnect => Status::Connecting,
-        })
+        match message {
+            AppInput::SwitchConnection => todo!(),
+            AppInput::Reconnect => todo!(),
+        }
     }
 
     fn update_cmd(
@@ -168,7 +224,15 @@ impl Component for AppModel {
         _root: &Self::Root,
     ) {
         match message {
-            AppMsg::StatusChanged(status) => self.set_status(status),
+            AppMsg::DaemonEvent(event) => {
+                self.set_daemon_state(match event {
+                    Event::TunnelState(state) => DaemonState::Connected {
+                        tunnel_state: state,
+                    },
+                    Event::ConnectingToDaemon => DaemonState::Connecting,
+                });
+                self.update_view_models()
+            }
         }
     }
 }
