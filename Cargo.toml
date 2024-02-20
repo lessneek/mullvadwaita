@@ -19,7 +19,7 @@ futures-util = "0.3.30"
 tokio = { version = "1.36.0", features = ["rt-multi-thread", "full"] }
 log = { version = "0.4.20", features = ["std", "max_level_trace"] }
 simple_logger = "4.3.3"
-anyhow = "1.0.79"
+anyhow = "1.0.80"
 smart-default = "0.7.1"
 
 mullvad-management-interface = { path = "./mullvadvpn-app/mullvad-management-interface" }

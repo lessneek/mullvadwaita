@@ -35,14 +35,6 @@ enum AppMsg {
 #[tracker::track]
 #[derive(SmartDefault)]
 struct AppModel {
-    #[no_eq]
-    daemon_state: DaemonState,
-    main_vm: MainViewModel,
-}
-
-#[tracker::track]
-#[derive(SmartDefault, PartialEq)]
-struct MainViewModel {
     state_label: String,
     connection_button_label: &'static str,
     connection_button_css: &'static [&'static str],
@@ -53,52 +45,50 @@ struct MainViewModel {
 #[derive(Debug, SmartDefault)]
 enum DaemonState {
     Connected {
-        tunnel_state: TunnelState,
+        tunnel_state: Box<TunnelState>,
     },
     #[default]
     Connecting,
 }
 
 impl AppModel {
-    fn update_view_models(&mut self) {
-        match &self.daemon_state {
+    fn on_daemon_state_update(&mut self, daemon_state: &DaemonState) {
+        match &daemon_state {
             DaemonState::Connected { tunnel_state } => {
-                self.main_vm.is_daemon_connected = true;
-                match tunnel_state {
+                self.set_is_daemon_connected(true);
+                match &**tunnel_state {
                     TunnelState::Connected { endpoint, .. } => {
-                        self.main_vm.set_state_label(format!("Connected: {}", endpoint));
-                        self.main_vm.set_is_tunnel_connecting_or_connected(true);
-                        self.main_vm.set_connection_button_label("Disconnect");
+                        self.set_state_label(format!("Connected: {}", endpoint));
+                        self.set_is_tunnel_connecting_or_connected(true);
+                        self.set_connection_button_label("Disconnect");
                     }
                     TunnelState::Connecting { endpoint, .. } => {
-                        self.main_vm.set_state_label(format!("Connecting: {}", endpoint));
-                        self.main_vm.set_is_tunnel_connecting_or_connected(true);
-                        self.main_vm.set_connection_button_label("Cancel");
+                        self.set_state_label(format!("Connecting: {}", endpoint));
+                        self.set_is_tunnel_connecting_or_connected(true);
+                        self.set_connection_button_label("Cancel");
                     }
                     TunnelState::Disconnected { .. } => {
-                        self.main_vm.set_state_label("Disconnected".to_string());
-                        self.main_vm.set_is_tunnel_connecting_or_connected(false);
-                        self.main_vm
-                            .set_connection_button_label("Secure my connection");
+                        self.set_state_label("Disconnected".to_string());
+                        self.set_is_tunnel_connecting_or_connected(false);
+                        self.set_connection_button_label("Secure my connection");
                     }
                     TunnelState::Disconnecting(_) => {
-                        self.main_vm.set_state_label("Disconnecting...".to_string());
+                        self.set_state_label("Disconnecting...".to_string());
                     }
                     TunnelState::Error(state) => {
-                        self.main_vm.set_state_label(format!("Error: {:?}", state));
+                        self.set_state_label(format!("Error: {:?}", state));
                     }
                 }
             }
             DaemonState::Connecting => {
-                self.main_vm.is_daemon_connected = false;
-                self.main_vm
-                    .set_state_label("Connecting to daemon...".to_string());
+                self.set_is_daemon_connected(false);
+                self.set_state_label("Connecting to daemon...".to_string());
             }
         }
 
-        self.main_vm.set_connection_button_css(
-            if let DaemonState::Connected { tunnel_state } = &self.daemon_state {
-                match tunnel_state {
+        self.set_connection_button_css(
+            if let DaemonState::Connected { tunnel_state } = &daemon_state {
+                match &**tunnel_state {
                     TunnelState::Disconnected { .. } => &["suggested-action"],
                     TunnelState::Connected { .. } | TunnelState::Connecting { .. } => {
                         &["destructive-action"]
@@ -133,15 +123,15 @@ impl Component for AppModel {
                     set_orientation: gtk::Orientation::Vertical,
 
                     gtk::Label {
-                        #[track = "model.main_vm.changed(MainViewModel::state_label())"]
-                        set_label: &model.main_vm.state_label,
+                        #[track = "model.changed(AppModel::state_label())"]
+                        set_label: &model.state_label,
                         set_margin_all: 5,
                         add_css_class: "title-1"
                     },
 
                     gtk::Box {
-                        #[track = "model.changed(AppModel::daemon_state())"]
-                        set_visible: model.main_vm.is_daemon_connected,
+                        #[track = "model.changed(AppModel::is_daemon_connected())"]
+                        set_visible: model.is_daemon_connected,
 
                         add_css_class: "linked",
                         set_margin_all: 20,
@@ -154,18 +144,18 @@ impl Component for AppModel {
                             connect_clicked => AppInput::SwitchConnection,
                             set_hexpand: true,
 
-                            #[track = "model.main_vm.changed(MainViewModel::connection_button_label())"]
-                            set_label: model.main_vm.connection_button_label,
+                            #[track = "model.changed(AppModel::connection_button_label())"]
+                            set_label: model.connection_button_label,
 
-                            #[track = "model.main_vm.changed(MainViewModel::connection_button_css())"]
-                            set_css_classes: model.main_vm.connection_button_css,
+                            #[track = "model.changed(AppModel::connection_button_css())"]
+                            set_css_classes: model.connection_button_css,
                         },
 
                         gtk::Button {
                             connect_clicked => AppInput::Reconnect,
 
-                            #[track = "model.changed(AppModel::daemon_state())"]
-                            set_visible: model.main_vm.is_tunnel_connecting_or_connected,
+                            #[track = "model.changed(AppModel::is_tunnel_connecting_or_connected())"]
+                            set_visible: model.is_tunnel_connecting_or_connected,
 
                             set_css_classes: &["suggested-action"],
                             set_icon_name: icon_name::REFRESH_LARGE
@@ -225,13 +215,13 @@ impl Component for AppModel {
     ) {
         match message {
             AppMsg::DaemonEvent(event) => {
-                self.set_daemon_state(match event {
+                let daemon_state = match event {
                     Event::TunnelState(state) => DaemonState::Connected {
                         tunnel_state: state,
                     },
                     Event::ConnectingToDaemon => DaemonState::Connecting,
-                });
-                self.update_view_models()
+                };
+                self.on_daemon_state_update(&daemon_state);
             }
         }
     }

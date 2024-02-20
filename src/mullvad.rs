@@ -10,7 +10,7 @@ use futures::StreamExt;
 
 #[derive(Debug)]
 pub enum Event {
-    TunnelState(TunnelState),
+    TunnelState(Box<TunnelState>),
     ConnectingToDaemon,
 }
 
@@ -34,7 +34,7 @@ async fn listen(sender: &Sender<Event>) -> Result<()> {
     let mut rpc = MullvadProxyClient::new().await?;
 
     let state = rpc.get_tunnel_state().await?;
-    sender.send(Event::TunnelState(state)).await?;
+    sender.send(Event::TunnelState(Box::new(state))).await?;
 
     // let device = rpc.get_device().await?;
 
@@ -42,7 +42,7 @@ async fn listen(sender: &Sender<Event>) -> Result<()> {
         match event? {
             DaemonEvent::TunnelState(new_state) => {
                 log::debug!("New tunnel state: {new_state:#?}");
-                sender.send(Event::TunnelState(new_state)).await?;
+                sender.send(Event::TunnelState(Box::new(new_state))).await?;
             }
             DaemonEvent::Settings(settings) => {
                 log::debug!("New settings: {settings:#?}");
