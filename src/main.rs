@@ -89,9 +89,9 @@ impl AppModel {
         self.set_connection_button_css(
             if let DaemonState::Connected { tunnel_state } = &daemon_state {
                 match &**tunnel_state {
-                    TunnelState::Disconnected { .. } => &["suggested-action"],
+                    TunnelState::Disconnected { .. } => &["opaque", "secure_connection_btn"],
                     TunnelState::Connected { .. } | TunnelState::Connecting { .. } => {
-                        &["destructive-action"]
+                        &["opaque", "disconnect_btn"]
                     }
                     _ => &[],
                 }
@@ -111,7 +111,7 @@ impl Component for AppModel {
 
     view! {
         adw::Window {
-            set_title: Some("Mullvadwaita"),
+            set_title: Some("Mullvad VPN"),
             set_default_size: (300, 600),
 
             gtk::Box {
@@ -157,7 +157,7 @@ impl Component for AppModel {
                             #[track = "model.changed(AppModel::is_tunnel_connecting_or_connected())"]
                             set_visible: model.is_tunnel_connecting_or_connected,
 
-                            set_css_classes: &["suggested-action"],
+                            set_css_classes: &["opaque", "reconnect_btn"],
                             set_icon_name: icon_name::REFRESH_LARGE
                         },
                     }
@@ -168,7 +168,7 @@ impl Component for AppModel {
 
     fn init(
         _: Self::Init,
-        root: &Self::Root,
+        root: Self::Root,
         sender: ComponentSender<Self>,
     ) -> ComponentParts<Self> {
         sender.command(|out, shutdown| {
@@ -202,8 +202,8 @@ impl Component for AppModel {
         self.reset();
 
         match message {
-            AppInput::SwitchConnection => todo!(),
-            AppInput::Reconnect => todo!(),
+            AppInput::SwitchConnection => {}
+            AppInput::Reconnect => {}
         }
     }
 
@@ -235,7 +235,28 @@ async fn main() {
 
     tokio::task::spawn_blocking(|| {
         let app = RelmApp::new("draft.mullvadwaita");
+
         relm4_icons::initialize_icons();
+
+        app.set_global_css(GLOBAL_CSS);
+
         app.run::<AppModel>(());
     });
 }
+
+const GLOBAL_CSS: &str = r#"
+.secure_connection_btn { 
+    color: white;
+    background-color: @green_3;
+}
+
+.disconnect_btn { 
+    color: white;
+    background-color: @red_3; 
+}
+
+.reconnect_btn { 
+    color: white;
+    background-color: @red_3;
+}
+"#;

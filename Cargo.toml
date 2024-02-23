@@ -6,11 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-adw = { version = "*", optional = true, package = "libadwaita" }
-gtk = { version = "*", package = "gtk4" }
-relm4 = { version = "0.6.2", features = ["all"] }
-relm4-components = "0.6.2"
-relm4-icons = { version = "0.6.0", features = ["refresh-large"] }
+adw = { version = "0.5.3", optional = true, package = "libadwaita" }
+gtk = { version = "0.7.3", package = "gtk4" }
+relm4 = { version = "0.7.0-rc.1", features = ["all"] }
+relm4-components = "0.7.0-rc.1"
+relm4-icons = { version = "0.7.0-alpha.2", features = ["refresh-large"] }
 tracker = "0.2.1"
 
 futures = "0.3.30"
@@ -22,5 +22,6 @@ simple_logger = "4.3.3"
 anyhow = "1.0.80"
 smart-default = "0.7.1"
 
+# mullvad
 mullvad-management-interface = { path = "./mullvadvpn-app/mullvad-management-interface" }
 mullvad-types = { path = "./mullvadvpn-app/mullvad-types"}
