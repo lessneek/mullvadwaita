@@ -1,8 +1,17 @@
+mod extensions;
 mod mullvad;
+mod texts;
+mod utils;
 
+use crate::extensions::TunnelStateExt;
+use crate::mullvad::Event;
+use crate::texts::*;
+use crate::utils::gettext;
+
+use futures::FutureExt;
 use log::debug;
+use smart_default::SmartDefault;
 
-use mullvad_types::states::TunnelState;
 use relm4::{
     adw,
     component::Component,
@@ -13,13 +22,9 @@ use relm4::{
     },
     ComponentParts, ComponentSender, RelmApp, RelmWidgetExt,
 };
-
 use relm4_icons::icon_name;
 
-use futures::FutureExt;
-
-use mullvad::Event;
-use smart_default::SmartDefault;
+use mullvad_types::states::TunnelState;
 
 #[derive(Debug)]
 enum AppInput {
@@ -35,7 +40,7 @@ enum AppMsg {
 #[tracker::track]
 #[derive(SmartDefault)]
 struct AppModel {
-    state_label: String,
+    state_label: &'static str,
     connection_button_label: &'static str,
     connection_button_css: &'static [&'static str],
     is_daemon_connected: bool,
@@ -52,53 +57,51 @@ enum DaemonState {
 }
 
 impl AppModel {
-    fn on_daemon_state_update(&mut self, daemon_state: &DaemonState) {
-        match &daemon_state {
+    fn on_daemon_state_change(&mut self, daemon_state: &DaemonState) {
+        use SecuredDisplayText::*;
+        use TunnelState::*;
+
+        match daemon_state {
             DaemonState::Connected { tunnel_state } => {
+                let tunnel_state = &**tunnel_state;
+
                 self.set_is_daemon_connected(true);
-                match &**tunnel_state {
-                    TunnelState::Connected { endpoint, .. } => {
-                        self.set_state_label(format!("Connected: {}", endpoint));
-                        self.set_is_tunnel_connecting_or_connected(true);
-                        self.set_connection_button_label("Disconnect");
+
+                self.set_is_tunnel_connecting_or_connected(
+                    tunnel_state.is_connecting_or_connected(),
+                );
+
+                self.set_connection_button_css(match tunnel_state {
+                    Disconnected { .. } => &["opaque", "secure_connection_btn"],
+                    Connected { .. } | Connecting { .. } => &["opaque", "disconnect_btn"],
+                    _ => &[],
+                });
+
+                self.set_state_label(gettext(match tunnel_state {
+                    Connected { endpoint, .. } => {
+                        choose!(endpoint.quantum_resistant, SecuredPq, Secured).as_str()
                     }
-                    TunnelState::Connecting { endpoint, .. } => {
-                        self.set_state_label(format!("Connecting: {}", endpoint));
-                        self.set_is_tunnel_connecting_or_connected(true);
-                        self.set_connection_button_label("Cancel");
+                    Connecting { endpoint, .. } => {
+                        choose!(endpoint.quantum_resistant, SecuringPq, Securing).as_str()
                     }
-                    TunnelState::Disconnected { .. } => {
-                        self.set_state_label("Disconnected".to_string());
-                        self.set_is_tunnel_connecting_or_connected(false);
-                        self.set_connection_button_label("Secure my connection");
+                    Disconnected { locked_down, .. } => {
+                        choose!(*locked_down, Blocked, Unsecured).as_str()
                     }
-                    TunnelState::Disconnecting(_) => {
-                        self.set_state_label("Disconnecting...".to_string());
-                    }
-                    TunnelState::Error(state) => {
-                        self.set_state_label(format!("Error: {:?}", state));
-                    }
-                }
+                    _ => "",
+                }));
+
+                self.set_connection_button_label(gettext(match tunnel_state {
+                    Connected { .. } => "Disconnect",
+                    Connecting { .. } => "Cancel",
+                    Disconnected { .. } => "Secure my connection",
+                    _ => "",
+                }));
             }
             DaemonState::Connecting => {
                 self.set_is_daemon_connected(false);
-                self.set_state_label("Connecting to daemon...".to_string());
+                self.set_state_label(gettext("Connecting to Mullvad system service..."));
             }
         }
-
-        self.set_connection_button_css(
-            if let DaemonState::Connected { tunnel_state } = &daemon_state {
-                match &**tunnel_state {
-                    TunnelState::Disconnected { .. } => &["opaque", "secure_connection_btn"],
-                    TunnelState::Connected { .. } | TunnelState::Connecting { .. } => {
-                        &["opaque", "disconnect_btn"]
-                    }
-                    _ => &[],
-                }
-            } else {
-                &[]
-            },
-        );
     }
 }
 
@@ -126,7 +129,8 @@ impl Component for AppModel {
                         #[track = "model.changed(AppModel::state_label())"]
                         set_label: &model.state_label,
                         set_margin_all: 5,
-                        add_css_class: "title-1"
+                        add_css_class: "title-4",
+                        set_wrap: true,
                     },
 
                     gtk::Box {
@@ -221,7 +225,7 @@ impl Component for AppModel {
                     },
                     Event::ConnectingToDaemon => DaemonState::Connecting,
                 };
-                self.on_daemon_state_update(&daemon_state);
+                self.on_daemon_state_change(&daemon_state);
             }
         }
     }
@@ -245,17 +249,17 @@ async fn main() {
 }
 
 const GLOBAL_CSS: &str = r#"
-.secure_connection_btn { 
+.secure_connection_btn {
     color: white;
     background-color: @green_3;
 }
 
-.disconnect_btn { 
+.disconnect_btn {
     color: white;
-    background-color: @red_3; 
+    background-color: @red_3;
 }
 
-.reconnect_btn { 
+.reconnect_btn {
     color: white;
     background-color: @red_3;
 }

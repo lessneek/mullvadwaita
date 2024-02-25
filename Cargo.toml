@@ -24,4 +24,5 @@ smart-default = "0.7.1"
 
 # mullvad
 mullvad-management-interface = { path = "./mullvadvpn-app/mullvad-management-interface" }
-mullvad-types = { path = "./mullvadvpn-app/mullvad-types"}
+mullvad-types = { path = "./mullvadvpn-app/mullvad-types" }
+talpid-types = { path = "./mullvadvpn-app/talpid-types" }

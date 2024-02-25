@@ -1288,6 +1288,7 @@ dependencies = [
  "relm4-icons",
  "simple_logger",
  "smart-default",
+ "talpid-types",
  "tokio",
  "tracker",
 ]
