@@ -1,15 +1,16 @@
 mod extensions;
 mod mullvad;
-mod texts;
-mod utils;
+#[macro_use]
+mod prelude;
+
+#[macro_use]
+extern crate tr;
 
 use crate::extensions::TunnelStateExt;
 use crate::mullvad::Event;
-use crate::texts::*;
-use crate::utils::gettext;
+use crate::prelude::*;
 
 use futures::FutureExt;
-use log::debug;
 use smart_default::SmartDefault;
 
 use relm4::{
@@ -40,8 +41,8 @@ enum AppMsg {
 #[tracker::track]
 #[derive(SmartDefault)]
 struct AppModel {
-    state_label: &'static str,
-    connection_button_label: &'static str,
+    state_label: String,
+    connection_button_label: String,
     connection_button_css: &'static [&'static str],
     is_daemon_connected: bool,
     is_tunnel_connecting_or_connected: bool,
@@ -58,7 +59,6 @@ enum DaemonState {
 
 impl AppModel {
     fn on_daemon_state_change(&mut self, daemon_state: &DaemonState) {
-        use SecuredDisplayText::*;
         use TunnelState::*;
 
         match daemon_state {
@@ -77,29 +77,44 @@ impl AppModel {
                     _ => &[],
                 });
 
-                self.set_state_label(gettext(match tunnel_state {
+                self.set_state_label(match tunnel_state {
                     Connected { endpoint, .. } => {
-                        choose!(endpoint.quantum_resistant, SecuredPq, Secured).as_str()
+                        if endpoint.quantum_resistant {
+                            tr!(
+                                // Creating a secure connection that isn't breakable by quantum computers.
+                                "QUANTUM SECURE CONNECTION"
+                            )
+                        } else {
+                            tr!("SECURE CONNECTION")
+                        }
                     }
                     Connecting { endpoint, .. } => {
-                        choose!(endpoint.quantum_resistant, SecuringPq, Securing).as_str()
+                        if endpoint.quantum_resistant {
+                            tr!("CREATING QUANTUM SECURE CONNECTION")
+                        } else {
+                            tr!("CREATING SECURE CONNECTION")
+                        }
                     }
                     Disconnected { locked_down, .. } => {
-                        choose!(*locked_down, Blocked, Unsecured).as_str()
+                        if *locked_down {
+                            tr!("BLOCKED CONNECTION")
+                        } else {
+                            tr!("UNSECURED CONNECTION")
+                        }
                     }
-                    _ => "",
-                }));
+                    _ => "".to_owned(),
+                });
 
-                self.set_connection_button_label(gettext(match tunnel_state {
-                    Connected { .. } => "Disconnect",
-                    Connecting { .. } => "Cancel",
-                    Disconnected { .. } => "Secure my connection",
-                    _ => "",
-                }));
+                self.set_connection_button_label(match tunnel_state {
+                    Connected { .. } => tr!("Disconnect"),
+                    Connecting { .. } => tr!("Cancel"),
+                    Disconnected { .. } => tr!("Secure my connection"),
+                    _ => "".to_owned(),
+                });
             }
             DaemonState::Connecting => {
                 self.set_is_daemon_connected(false);
-                self.set_state_label(gettext("Connecting to Mullvad system service..."));
+                self.set_state_label(tr!("Connecting to Mullvad system service..."));
             }
         }
     }
@@ -149,7 +164,7 @@ impl Component for AppModel {
                             set_hexpand: true,
 
                             #[track = "model.changed(AppModel::connection_button_label())"]
-                            set_label: model.connection_button_label,
+                            set_label: model.connection_button_label.as_str(),
 
                             #[track = "model.changed(AppModel::connection_button_css())"]
                             set_css_classes: model.connection_button_css,
@@ -231,19 +246,41 @@ impl Component for AppModel {
     }
 }
 
+fn init_logger() {
+    simple_logger::SimpleLogger::new()
+        .with_level(log::LevelFilter::Debug)
+        .init()
+        .unwrap();
+}
+
+fn init_gettext() {
+    use i18n_embed::{gettext::gettext_language_loader, DesktopLanguageRequester};
+
+    use rust_embed::RustEmbed;
+
+    #[derive(RustEmbed)]
+    #[folder = "i18n/mo"] // path to the compiled localization resources
+    struct Translations;
+
+    let _ = i18n_embed::select(
+        &gettext_language_loader!(),
+        &Translations {},
+        &DesktopLanguageRequester::requested_languages(),
+    );
+}
+
 #[tokio::main]
 async fn main() {
-    simple_logger::SimpleLogger::new().init().unwrap();
+    init_logger();
 
     debug!("mullvadwaita starting...");
 
+    init_gettext();
+
     tokio::task::spawn_blocking(|| {
         let app = RelmApp::new("draft.mullvadwaita");
-
         relm4_icons::initialize_icons();
-
         app.set_global_css(GLOBAL_CSS);
-
         app.run::<AppModel>(());
     });
 }

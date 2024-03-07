@@ -1,3 +1,5 @@
 /target
 /.vscode
 /.idea
+/i18n/pot
+/i18n/mo
