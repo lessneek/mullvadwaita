@@ -1,0 +1,14 @@
+.secure_connection_btn {
+    color: white;
+    background-color: @green_3;
+}
+
+.disconnect_btn {
+    color: white;
+    background-color: @red_3;
+}
+
+.reconnect_btn {
+    color: white;
+    background-color: @red_3;
+}

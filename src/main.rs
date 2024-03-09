@@ -280,24 +280,7 @@ async fn main() {
     tokio::task::spawn_blocking(|| {
         let app = RelmApp::new("draft.mullvadwaita");
         relm4_icons::initialize_icons();
-        app.set_global_css(GLOBAL_CSS);
+        app.set_global_css(include_str!("./res/global.css"));
         app.run::<AppModel>(());
     });
 }
-
-const GLOBAL_CSS: &str = r#"
-.secure_connection_btn {
-    color: white;
-    background-color: @green_3;
-}
-
-.disconnect_btn {
-    color: white;
-    background-color: @red_3;
-}
-
-.reconnect_btn {
-    color: white;
-    background-color: @red_3;
-}
-"#;
