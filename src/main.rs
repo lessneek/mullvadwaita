@@ -26,10 +26,13 @@ use relm4::{
 use relm4_icons::icon_name;
 
 use mullvad_types::states::TunnelState;
+use talpid_types::tunnel::ActionAfterDisconnect;
 
 #[derive(Debug)]
 enum AppInput {
-    SwitchConnection,
+    SecureMyConnection,
+    CancelConnection,
+    Disconnect,
     Reconnect,
 }
 
@@ -41,11 +44,8 @@ enum AppMsg {
 #[tracker::track]
 #[derive(SmartDefault)]
 struct AppModel {
-    state_label: String,
-    connection_button_label: String,
-    connection_button_css: &'static [&'static str],
-    is_daemon_connected: bool,
-    is_tunnel_connecting_or_connected: bool,
+    #[no_eq]
+    daemon_state: DaemonState,
 }
 
 #[derive(Debug, SmartDefault)]
@@ -58,27 +58,49 @@ enum DaemonState {
 }
 
 impl AppModel {
-    fn on_daemon_state_change(&mut self, daemon_state: &DaemonState) {
-        use TunnelState::*;
+    fn is_daemon_connected(&self) -> bool {
+        matches!(self.daemon_state, DaemonState::Connected { .. })
+    }
 
-        match daemon_state {
+    fn can_secure_connection(&self) -> bool {
+        match &self.daemon_state {
+            DaemonState::Connected { tunnel_state } => matches!(
+                **tunnel_state,
+                TunnelState::Disconnected { .. }
+                    | TunnelState::Disconnecting(
+                        ActionAfterDisconnect::Nothing | ActionAfterDisconnect::Block
+                    )
+            ),
+            _ => false,
+        }
+    }
+
+    fn can_cancel_connection(&self) -> bool {
+        match &self.daemon_state {
+            DaemonState::Connected { tunnel_state } => tunnel_state.is_connecting_or_reconnecting(),
+            _ => false,
+        }
+    }
+
+    fn can_disconnect(&self) -> bool {
+        match &self.daemon_state {
+            DaemonState::Connected { tunnel_state } => tunnel_state.is_connected(),
+            _ => false,
+        }
+    }
+
+    fn can_reconnect(&self) -> bool {
+        match &self.daemon_state {
+            DaemonState::Connected { tunnel_state } => tunnel_state.is_connecting_or_connected(),
+            _ => false,
+        }
+    }
+
+    fn get_state_label(&self) -> String {
+        match &self.daemon_state {
             DaemonState::Connected { tunnel_state } => {
-                let tunnel_state = &**tunnel_state;
-
-                self.set_is_daemon_connected(true);
-
-                self.set_is_tunnel_connecting_or_connected(
-                    tunnel_state.is_connecting_or_connected(),
-                );
-
-                self.set_connection_button_css(match tunnel_state {
-                    Disconnected { .. } => &["opaque", "secure_connection_btn"],
-                    Connected { .. } | Connecting { .. } => &["opaque", "disconnect_btn"],
-                    _ => &[],
-                });
-
-                self.set_state_label(match tunnel_state {
-                    Connected { endpoint, .. } => {
+                match &**tunnel_state {
+                    TunnelState::Connected { endpoint, .. } => {
                         if endpoint.quantum_resistant {
                             tr!(
                                 // Creating a secure connection that isn't breakable by quantum computers.
@@ -88,33 +110,33 @@ impl AppModel {
                             tr!("SECURE CONNECTION")
                         }
                     }
-                    Connecting { endpoint, .. } => {
+                    TunnelState::Connecting { endpoint, .. } => {
                         if endpoint.quantum_resistant {
                             tr!("CREATING QUANTUM SECURE CONNECTION")
                         } else {
                             tr!("CREATING SECURE CONNECTION")
                         }
                     }
-                    Disconnected { locked_down, .. } => {
+                    TunnelState::Disconnected { locked_down, .. } => {
                         if *locked_down {
                             tr!("BLOCKED CONNECTION")
                         } else {
                             tr!("UNSECURED CONNECTION")
                         }
                     }
-                    _ => "".to_owned(),
-                });
-
-                self.set_connection_button_label(match tunnel_state {
-                    Connected { .. } => tr!("Disconnect"),
-                    Connecting { .. } => tr!("Cancel"),
-                    Disconnected { .. } => tr!("Secure my connection"),
-                    _ => "".to_owned(),
-                });
+                    TunnelState::Disconnecting(
+                        ActionAfterDisconnect::Nothing | ActionAfterDisconnect::Block,
+                    ) => tr!("DISCONNECTING"),
+                    TunnelState::Disconnecting(ActionAfterDisconnect::Reconnect) => {
+                        tr!("CREATING SECURE CONNECTION")
+                    }
+                    TunnelState::Error(error_state) => {
+                        format!("{}: {:?}", tr!("ERROR"), error_state)
+                    }
+                }
             }
             DaemonState::Connecting => {
-                self.set_is_daemon_connected(false);
-                self.set_state_label(tr!("Connecting to Mullvad system service..."));
+                tr!("Connecting to Mullvad system service...")
             }
         }
     }
@@ -141,16 +163,16 @@ impl Component for AppModel {
                     set_orientation: gtk::Orientation::Vertical,
 
                     gtk::Label {
-                        #[track = "model.changed(AppModel::state_label())"]
-                        set_label: &model.state_label,
+                        #[track = "model.changed(AppModel::daemon_state())"]
+                        set_label: &model.get_state_label(),
                         set_margin_all: 5,
                         add_css_class: "title-4",
                         set_wrap: true,
                     },
 
                     gtk::Box {
-                        #[track = "model.changed(AppModel::is_daemon_connected())"]
-                        set_visible: model.is_daemon_connected,
+                        #[track = "model.changed(AppModel::daemon_state())"]
+                        set_visible: model.is_daemon_connected(),
 
                         add_css_class: "linked",
                         set_margin_all: 20,
@@ -160,24 +182,42 @@ impl Component for AppModel {
                         set_width_request: 300,
 
                         gtk::Button {
-                            connect_clicked => AppInput::SwitchConnection,
+                            connect_clicked => AppInput::SecureMyConnection,
                             set_hexpand: true,
+                            set_label: &tr!("Secure my connection"),
+                            set_css_classes: &["opaque", "secure_my_connection_btn"],
 
-                            #[track = "model.changed(AppModel::connection_button_label())"]
-                            set_label: model.connection_button_label.as_str(),
+                            #[track = "model.changed(AppModel::daemon_state())"]
+                            set_visible: model.can_secure_connection()
+                        },
 
-                            #[track = "model.changed(AppModel::connection_button_css())"]
-                            set_css_classes: model.connection_button_css,
+                        gtk::Button {
+                            connect_clicked => AppInput::CancelConnection,
+                            set_hexpand: true,
+                            set_label: &tr!("Cancel"),
+                            set_css_classes: &["opaque", "disconnect_btn"],
+
+                            #[track = "model.changed(AppModel::daemon_state())"]
+                            set_visible: model.can_cancel_connection()
+                        },
+
+                        gtk::Button {
+                            connect_clicked => AppInput::Disconnect,
+                            set_hexpand: true,
+                            set_label: &tr!("Disconnect"),
+                            set_css_classes: &["opaque", "disconnect_btn"],
+
+                            #[track = "model.changed(AppModel::daemon_state())"]
+                            set_visible: model.can_disconnect()
                         },
 
                         gtk::Button {
                             connect_clicked => AppInput::Reconnect,
-
-                            #[track = "model.changed(AppModel::is_tunnel_connecting_or_connected())"]
-                            set_visible: model.is_tunnel_connecting_or_connected,
-
                             set_css_classes: &["opaque", "reconnect_btn"],
-                            set_icon_name: icon_name::REFRESH_LARGE
+                            set_icon_name: icon_name::REFRESH_LARGE,
+
+                            #[track = "model.changed(AppModel::daemon_state())"]
+                            set_visible: model.can_reconnect(),
                         },
                     }
                 }
@@ -221,8 +261,10 @@ impl Component for AppModel {
         self.reset();
 
         match message {
-            AppInput::SwitchConnection => {}
+            AppInput::SecureMyConnection => {}
             AppInput::Reconnect => {}
+            AppInput::CancelConnection => {},
+            AppInput::Disconnect => {},
         }
     }
 
@@ -240,7 +282,7 @@ impl Component for AppModel {
                     },
                     Event::ConnectingToDaemon => DaemonState::Connecting,
                 };
-                self.on_daemon_state_change(&daemon_state);
+                self.set_daemon_state(daemon_state);
             }
         }
     }
