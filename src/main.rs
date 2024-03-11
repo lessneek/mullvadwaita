@@ -10,9 +10,9 @@ use crate::extensions::TunnelStateExt;
 use crate::mullvad::Event;
 use crate::prelude::*;
 
+use anyhow::Result;
 use futures::FutureExt;
 use smart_default::SmartDefault;
-use anyhow::Result;
 
 use relm4::{
     adw,
@@ -262,10 +262,10 @@ impl Component for AppModel {
         self.reset();
 
         match message {
-            AppInput::SecureMyConnection => {}
-            AppInput::Reconnect => {}
-            AppInput::CancelConnection => {}
-            AppInput::Disconnect => {}
+            AppInput::SecureMyConnection => mullvad::secure_my_connection(),
+            AppInput::Reconnect => mullvad::reconnect(),
+            AppInput::CancelConnection => mullvad::disconnect(),
+            AppInput::Disconnect => mullvad::disconnect(),
         }
     }
 

@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use mullvad_management_interface::{client::DaemonEvent, MullvadProxyClient};
 use mullvad_types::states::TunnelState;
@@ -33,15 +33,50 @@ pub fn watch() -> Receiver<Event> {
     receiver
 }
 
-async fn listen(sender: &Sender<Event>) -> Result<()> {
-    let mut rpc = MullvadProxyClient::new().await?;
+pub fn secure_my_connection() {
+    tokio::spawn(async {
+        let mut client = get_mullvad_proxy_client().await?;
+        anyhow::Ok(client.connect_tunnel().await.context("connect tunnel")?)
+    });
+}
 
-    let state = rpc.get_tunnel_state().await?;
+pub fn disconnect() {
+    tokio::spawn(async {
+        let mut client = get_mullvad_proxy_client().await?;
+        anyhow::Ok(
+            client
+                .disconnect_tunnel()
+                .await
+                .context("disconnect tunnel")?,
+        )
+    });
+}
+
+pub fn reconnect() {
+    tokio::spawn(async {
+        let mut client = get_mullvad_proxy_client().await?;
+        anyhow::Ok(
+            client
+                .reconnect_tunnel()
+                .await
+                .context("reconnect tunnel")?,
+        )
+    });
+}
+
+async fn get_mullvad_proxy_client() -> Result<MullvadProxyClient> {
+    MullvadProxyClient::new()
+        .await
+        .context("mullvad proxy client connection")
+}
+
+async fn listen(sender: &Sender<Event>) -> Result<()> {
+    let mut client = get_mullvad_proxy_client().await?;
+
+    let state = client.get_tunnel_state().await?;
     sender.send(Event::TunnelState(Box::new(state))).await?;
 
-    // let device = rpc.get_device().await?;
-
-    while let Some(event) = rpc.events_listen().await?.next().await {
+    while let Some(event) = client.events_listen().await?.next().await {
         match event? {
             DaemonEvent::TunnelState(new_state) => {
                 trace!("New tunnel state: {new_state:#?}");
