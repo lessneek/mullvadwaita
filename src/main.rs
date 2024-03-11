@@ -12,6 +12,7 @@ use crate::prelude::*;
 
 use futures::FutureExt;
 use smart_default::SmartDefault;
+use anyhow::Result;
 
 use relm4::{
     adw,
@@ -288,17 +289,17 @@ impl Component for AppModel {
     }
 }
 
-fn init_logger() {
+fn init_logger() -> Result<(), log::SetLoggerError> {
     simple_logger::SimpleLogger::new()
         .with_level(log::LevelFilter::Error)
         .with_module_level("mullvadwaita", log::LevelFilter::Debug)
         .env()
         .with_colors(true)
         .init()
-        .unwrap();
 }
 
-fn init_gettext() {
+fn init_gettext(
+) -> Result<Vec<i18n_embed::unic_langid::LanguageIdentifier>, i18n_embed::I18nEmbedError> {
     use i18n_embed::{gettext::gettext_language_loader, DesktopLanguageRequester};
 
     use rust_embed::RustEmbed;
@@ -307,20 +308,20 @@ fn init_gettext() {
     #[folder = "i18n/mo"] // path to the compiled localization resources
     struct Translations;
 
-    let _ = i18n_embed::select(
+    i18n_embed::select(
         &gettext_language_loader!(),
         &Translations {},
         &DesktopLanguageRequester::requested_languages(),
-    );
+    )
 }
 
 #[tokio::main]
-async fn main() {
-    init_logger();
+async fn main() -> Result<()> {
+    init_logger()?;
 
     debug!("mullvadwaita starting...");
 
-    init_gettext();
+    init_gettext()?;
 
     tokio::task::spawn_blocking(|| {
         let app = RelmApp::new("draft.mullvadwaita");
@@ -328,4 +329,6 @@ async fn main() {
         app.set_global_css(include_str!("./res/global.css"));
         app.run::<AppModel>(());
     });
+
+    Ok(())
 }
