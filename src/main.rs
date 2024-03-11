@@ -236,14 +236,14 @@ impl Component for AppModel {
                 .register(async move {
                     let mut event_rx = mullvad::watch();
 
-                    debug!("Listening for status updates...");
+                    trace!("Listening for status updates...");
 
                     while let Some(event) = event_rx.recv().await {
-                        debug!("Daemon event: {:?}", event);
+                        debug!("Daemon event: {:#?}", event);
                         out.send(AppMsg::DaemonEvent(event)).unwrap();
                     }
 
-                    debug!("Status updates stopped.");
+                    trace!("Status updates stopped.");
                 })
                 // Perform task until a shutdown interrupts it
                 .drop_on_shutdown()
@@ -263,8 +263,8 @@ impl Component for AppModel {
         match message {
             AppInput::SecureMyConnection => {}
             AppInput::Reconnect => {}
-            AppInput::CancelConnection => {},
-            AppInput::Disconnect => {},
+            AppInput::CancelConnection => {}
+            AppInput::Disconnect => {}
         }
     }
 
@@ -290,7 +290,10 @@ impl Component for AppModel {
 
 fn init_logger() {
     simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Debug)
+        .with_level(log::LevelFilter::Error)
+        .with_module_level("mullvadwaita", log::LevelFilter::Debug)
+        .env()
+        .with_colors(true)
         .init()
         .unwrap();
 }

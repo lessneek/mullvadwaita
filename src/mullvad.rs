@@ -1,3 +1,5 @@
+use crate::prelude::*;
+
 use std::time::Duration;
 
 use anyhow::Result;
@@ -19,9 +21,10 @@ pub fn watch() -> Receiver<Event> {
 
     tokio::spawn(async move {
         while !sender.is_closed() && (sender.send(Event::ConnectingToDaemon).await).is_ok() {
+            trace!("Starting listening for RPC.");
             match listen(&sender).await {
-                Ok(_) => log::debug!("RPC listening ended Ok."),
-                Err(err) => log::debug!("RPC listening error: {}", err),
+                Ok(_) => trace!("RPC listening ended Ok."),
+                Err(err) => trace!("RPC listening error: {}", err),
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -41,26 +44,26 @@ async fn listen(sender: &Sender<Event>) -> Result<()> {
     while let Some(event) = rpc.events_listen().await?.next().await {
         match event? {
             DaemonEvent::TunnelState(new_state) => {
-                log::debug!("New tunnel state: {new_state:#?}");
+                trace!("New tunnel state: {new_state:#?}");
                 sender.send(Event::TunnelState(Box::new(new_state))).await?;
             }
             DaemonEvent::Settings(settings) => {
-                log::debug!("New settings: {settings:#?}");
+                trace!("New settings: {settings:#?}");
             }
             DaemonEvent::RelayList(relay_list) => {
-                log::debug!("New relay list: {relay_list:#?}");
+                trace!("New relay list: {relay_list:#?}");
             }
             DaemonEvent::AppVersionInfo(app_version_info) => {
-                log::debug!("New app version info: {app_version_info:#?}");
+                trace!("New app version info: {app_version_info:#?}");
             }
             DaemonEvent::Device(device) => {
-                log::debug!("Device event: {device:#?}");
+                trace!("Device event: {device:#?}");
             }
             DaemonEvent::RemoveDevice(device) => {
-                log::debug!("Remove device event: {device:#?}");
+                trace!("Remove device event: {device:#?}");
             }
             DaemonEvent::NewAccessMethod(access_method) => {
-                log::debug!("New access method: {access_method:#?}");
+                trace!("New access method: {access_method:#?}");
             }
         }
     }
