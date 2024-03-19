@@ -7,7 +7,7 @@ mod prelude;
 extern crate tr;
 
 use crate::extensions::TunnelStateExt;
-use crate::mullvad::Event;
+use crate::mullvad::{DaemonConnector, Event};
 use crate::prelude::*;
 
 use anyhow::Result;
@@ -16,13 +16,13 @@ use smart_default::SmartDefault;
 
 use relm4::{
     adw,
-    component::Component,
+    component::{AsyncComponent, AsyncComponentParts},
     gtk::{
         prelude::{ButtonExt, GtkWindowExt},
         traits::{OrientableExt, WidgetExt},
         Align::*,
     },
-    ComponentParts, ComponentSender, RelmApp, RelmWidgetExt,
+    AsyncComponentSender, RelmApp, RelmWidgetExt,
 };
 use relm4_icons::icon_name;
 
@@ -47,6 +47,8 @@ enum AppMsg {
 struct AppModel {
     #[no_eq]
     daemon_state: DaemonState,
+    #[no_eq]
+    daemon_connector: DaemonConnector,
 }
 
 #[derive(Debug, SmartDefault)]
@@ -143,8 +145,8 @@ impl AppModel {
     }
 }
 
-#[relm4::component]
-impl Component for AppModel {
+#[relm4::component(async)]
+impl AsyncComponent for AppModel {
     type Init = ();
     type Input = AppInput;
     type Output = ();
@@ -226,53 +228,51 @@ impl Component for AppModel {
         }
     }
 
-    fn init(
+    async fn init(
         _: Self::Init,
         root: Self::Root,
-        sender: ComponentSender<Self>,
-    ) -> ComponentParts<Self> {
+        sender: AsyncComponentSender<Self>,
+    ) -> AsyncComponentParts<Self> {
         sender.command(|out, shutdown| {
             shutdown
-                // Performs this operation until a shutdown is triggered
-                .register(async move {
-                    let mut event_rx = mullvad::watch();
-
-                    trace!("Listening for status updates...");
-
-                    while let Some(event) = event_rx.recv().await {
-                        debug!("Daemon event: {:#?}", event);
-                        out.send(AppMsg::DaemonEvent(event)).unwrap();
-                    }
-
-                    trace!("Status updates stopped.");
-                })
-                // Perform task until a shutdown interrupts it
+                .register(listen_to_mullvad_events(out))
                 .drop_on_shutdown()
-                // Wrap into a `Pin<Box<Future>>` for return
                 .boxed()
         });
 
         let model = AppModel::default();
         let widgets = view_output!();
 
-        ComponentParts { model, widgets }
+        AsyncComponentParts { model, widgets }
     }
 
-    fn update(&mut self, message: Self::Input, _sender: ComponentSender<Self>, _root: &Self::Root) {
+    async fn update(
+        &mut self,
+        message: Self::Input,
+        _sender: AsyncComponentSender<Self>,
+        _root: &Self::Root,
+    ) {
         self.reset();
 
+        let daemon_connector = self.get_mut_daemon_connector();
+
         match message {
-            AppInput::SecureMyConnection => mullvad::secure_my_connection(),
-            AppInput::Reconnect => mullvad::reconnect(),
-            AppInput::CancelConnection => mullvad::disconnect(),
-            AppInput::Disconnect => mullvad::disconnect(),
+            AppInput::SecureMyConnection => {
+                let _ = daemon_connector.secure_my_connection().await;
+            }
+            AppInput::Reconnect => {
+                let _ = daemon_connector.reconnect().await;
+            }
+            AppInput::CancelConnection | AppInput::Disconnect => {
+                let _ = daemon_connector.disconnect().await;
+            }
         }
     }
 
-    fn update_cmd(
+    async fn update_cmd(
         &mut self,
         message: Self::CommandOutput,
-        _sender: ComponentSender<Self>,
+        _sender: AsyncComponentSender<Self>,
         _root: &Self::Root,
     ) {
         match message {
@@ -287,6 +287,22 @@ impl Component for AppModel {
             }
         }
     }
+}
+
+async fn listen_to_mullvad_events(out: relm4::Sender<AppMsg>) {
+    let mut events_rx = mullvad::events_receiver();
+
+    trace!("Listening for status updates...");
+
+    while let Some(event) = events_rx.recv().await {
+        debug!("Daemon event: {:#?}", event);
+        if let Err(msg) = out.send(AppMsg::DaemonEvent(event)) {
+            debug!("Can't send an app message {msg:?} because all receivers were dropped");
+            break;
+        }
+    }
+
+    trace!("Status updates stopped.");
 }
 
 fn init_logger() -> Result<(), log::SetLoggerError> {
@@ -315,20 +331,15 @@ fn init_gettext(
     )
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     init_logger()?;
-
     debug!("mullvadwaita starting...");
-
     init_gettext()?;
 
-    tokio::task::spawn_blocking(|| {
-        let app = RelmApp::new("draft.mullvadwaita");
-        relm4_icons::initialize_icons();
-        app.set_global_css(include_str!("./res/global.css"));
-        app.run::<AppModel>(());
-    });
+    let app = RelmApp::new("draft.mullvadwaita");
+    relm4_icons::initialize_icons();
+    app.set_global_css(include_str!("./res/global.css"));
+    app.run_async::<AppModel>(());
 
     Ok(())
 }
