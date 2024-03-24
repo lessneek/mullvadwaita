@@ -6,11 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-adw = { version = "0.5.3", optional = true, package = "libadwaita" }
-gtk = { version = "0.7.3", package = "gtk4" }
-relm4 = { version = "0.7.0-rc.1", features = ["all"] }
-relm4-components = "0.7.0-rc.1"
-relm4-icons = { version = "0.7.0-alpha.2", features = ["refresh-large"] }
+adw = { version = "0.6.0", optional = true, package = "libadwaita" }
+gtk = { version = "0.8", package = "gtk4" }
+relm4 = { version = "0.8", features = ["all", "libadwaita", "gnome_45"] }
+relm4-components = "0.8"
+relm4-icons = "0.8"
 tracker = "0.2.1"
 
 futures = "0.3.30"
@@ -19,11 +19,14 @@ futures-util = "0.3.30"
 tokio = { version = "1.36.0", features = ["rt-multi-thread", "full"] }
 log = { version = "0.4.21", features = ["std", "max_level_trace"] }
 simple_logger = "4.3.3"
-anyhow = "1.0.80"
+anyhow = "1.0.81"
 smart-default = "0.7.1"
 
 # Localization
-i18n-embed = { version = "0.14.1", features = ["gettext-system", "desktop-requester"] }
+i18n-embed = { version = "0.14.1", features = [
+    "gettext-system",
+    "desktop-requester",
+] }
 i18n-build = "0.9.0"
 lazy_static = "1"
 rust-embed = "8"

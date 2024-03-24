@@ -6,27 +6,27 @@ mod prelude;
 #[macro_use]
 extern crate tr;
 
+use std::fmt::Write;
+
 use crate::extensions::TunnelStateExt;
 use crate::mullvad::{DaemonConnector, Event};
 use crate::prelude::*;
 
 use anyhow::Result;
 use futures::FutureExt;
+use mullvad_types::location::GeoIpLocation;
 use smart_default::SmartDefault;
 
 use relm4::{
-    adw,
+    adw::{self, prelude::*},
     component::{AsyncComponent, AsyncComponentParts},
-    gtk::{
-        prelude::{ButtonExt, GtkWindowExt},
-        traits::{OrientableExt, WidgetExt},
-        Align::*,
-    },
+    gtk::{prelude::*, Align, Orientation, SelectionMode},
     AsyncComponentSender, RelmApp, RelmWidgetExt,
 };
-use relm4_icons::icon_name;
+use relm4_icons::icon_names;
 
 use mullvad_types::states::TunnelState;
+use talpid_types::net::TunnelEndpoint;
 use talpid_types::tunnel::ActionAfterDisconnect;
 
 #[derive(Debug)]
@@ -61,8 +61,19 @@ enum DaemonState {
 }
 
 impl AppModel {
-    fn is_daemon_connected(&self) -> bool {
-        matches!(self.daemon_state, DaemonState::Connected { .. })
+    fn get_tunnel_state(&self) -> Option<&TunnelState> {
+        match &self.daemon_state {
+            DaemonState::Connected { tunnel_state } => Some(tunnel_state),
+            _ => None,
+        }
+    }
+
+    fn get_endpoint(&self) -> Option<&TunnelEndpoint> {
+        self.get_tunnel_state().and_then(|ts| ts.get_endpoint())
+    }
+
+    fn get_location(&self) -> Option<&GeoIpLocation> {
+        self.get_tunnel_state().and_then(|ts| ts.get_location())
     }
 
     fn can_secure_connection(&self) -> bool {
@@ -78,70 +89,125 @@ impl AppModel {
         }
     }
 
-    fn can_cancel_connection(&self) -> bool {
-        match &self.daemon_state {
-            DaemonState::Connected { tunnel_state } => tunnel_state.is_connecting_or_reconnecting(),
-            _ => false,
-        }
+    fn is_connecting_or_reconnecting(&self) -> bool {
+        self.get_tunnel_state()
+            .map(|ts| ts.is_connecting_or_reconnecting())
+            .unwrap_or(false)
     }
 
     fn can_disconnect(&self) -> bool {
-        match &self.daemon_state {
-            DaemonState::Connected { tunnel_state } => tunnel_state.is_connected(),
-            _ => false,
-        }
+        self.get_tunnel_state()
+            .map(|ts| ts.is_connected())
+            .unwrap_or(false)
     }
 
     fn can_reconnect(&self) -> bool {
-        match &self.daemon_state {
-            DaemonState::Connected { tunnel_state } => tunnel_state.is_connecting_or_connected(),
-            _ => false,
-        }
+        self.get_tunnel_state()
+            .map(|ts| ts.is_connecting_or_connected())
+            .unwrap_or(false)
     }
 
-    fn get_state_label(&self) -> String {
-        match &self.daemon_state {
-            DaemonState::Connected { tunnel_state } => {
-                match &**tunnel_state {
-                    TunnelState::Connected { endpoint, .. } => {
-                        if endpoint.quantum_resistant {
-                            tr!(
-                                // Creating a secure connection that isn't breakable by quantum computers.
-                                "QUANTUM SECURE CONNECTION"
-                            )
-                        } else {
-                            tr!("SECURE CONNECTION")
-                        }
-                    }
-                    TunnelState::Connecting { endpoint, .. } => {
-                        if endpoint.quantum_resistant {
-                            tr!("CREATING QUANTUM SECURE CONNECTION")
-                        } else {
-                            tr!("CREATING SECURE CONNECTION")
-                        }
-                    }
-                    TunnelState::Disconnected { locked_down, .. } => {
-                        if *locked_down {
-                            tr!("BLOCKED CONNECTION")
-                        } else {
-                            tr!("UNSECURED CONNECTION")
-                        }
-                    }
-                    TunnelState::Disconnecting(
-                        ActionAfterDisconnect::Nothing | ActionAfterDisconnect::Block,
-                    ) => tr!("DISCONNECTING"),
-                    TunnelState::Disconnecting(ActionAfterDisconnect::Reconnect) => {
-                        tr!("CREATING SECURE CONNECTION")
-                    }
-                    TunnelState::Error(error_state) => {
-                        format!("{}: {:?}", tr!("ERROR"), error_state)
+    fn get_tunnel_state_label(&self) -> Option<String> {
+        self.get_tunnel_state().map(|tunnel_state| {
+            use TunnelState::*;
+            match tunnel_state {
+                Connected { endpoint, .. } => {
+                    if endpoint.quantum_resistant {
+                        tr!(
+                            // Creating a secure connection that isn't breakable by quantum computers.
+                            "QUANTUM SECURE CONNECTION"
+                        )
+                    } else {
+                        tr!("SECURE CONNECTION")
                     }
                 }
+                Connecting { endpoint, .. } => {
+                    if endpoint.quantum_resistant {
+                        tr!("CREATING QUANTUM SECURE CONNECTION")
+                    } else {
+                        tr!("CREATING SECURE CONNECTION")
+                    }
+                }
+                Disconnected { locked_down, .. } => {
+                    if *locked_down {
+                        tr!("BLOCKED CONNECTION")
+                    } else {
+                        tr!("UNSECURED CONNECTION")
+                    }
+                }
+                Disconnecting(ActionAfterDisconnect::Nothing | ActionAfterDisconnect::Block) => {
+                    tr!("DISCONNECTING")
+                }
+                Disconnecting(ActionAfterDisconnect::Reconnect) => {
+                    tr!("CREATING SECURE CONNECTION")
+                }
+                Error(error_state) => {
+                    format!("{}: {:?}", tr!("ERROR"), error_state)
+                }
             }
-            DaemonState::Connecting => {
-                tr!("Connecting to Mullvad system service...")
+        })
+    }
+
+    fn get_country(&self) -> String {
+        self.get_tunnel_state()
+            .map_or(String::new(), |ts| ts.get_country())
+    }
+
+    fn get_city(&self) -> String {
+        self.get_tunnel_state()
+            .map_or(String::new(), |ts| ts.get_city())
+    }
+
+    fn get_hostname(&self) -> String {
+        let mut hostname = String::new();
+
+        if let Some(location) = self.get_tunnel_state().and_then(|ts| ts.get_location()) {
+            if let Some(new_hostname) = location.hostname.as_ref() {
+                hostname.push_str(new_hostname);
+                if let Some(via) = location
+                    .bridge_hostname
+                    .as_ref()
+                    .or(location.obfuscator_hostname.as_ref())
+                    .or(location.entry_hostname.as_ref())
+                {
+                    hostname.push_str(" via ");
+                    hostname.push_str(via);
+                }
             }
         }
+
+        hostname
+    }
+
+    fn get_tunnel_protocol(&self) -> Option<String> {
+        self.get_endpoint().map(|te| te.tunnel_type.to_string())
+    }
+
+    fn get_tunnel_in(&self) -> Option<String> {
+        self.get_endpoint().and_then(|te| {
+            te.proxy
+                .map(|pep| pep.endpoint.to_string())
+                .or(te.obfuscation.map(|oep| oep.endpoint.to_string()))
+                .or(te.entry_endpoint.map(|eep| eep.to_string()))
+                .or(Some(te.endpoint.to_string()))
+        })
+    }
+
+    fn get_tunnel_out(&self) -> Option<String> {
+        self.get_location().map(|loc| {
+            let mut out = String::new();
+            if let Some(ipv4) = loc.ipv4 {
+                writeln!(&mut out, "{}", &ipv4.to_string()).ok();
+            }
+            if let Some(ipv6) = loc.ipv6 {
+                write!(&mut out, "{}", &ipv6.to_string()).ok();
+            }
+            out
+        })
+    }
+
+    fn state_changed(&self) -> bool {
+        self.changed(AppModel::daemon_state())
     }
 }
 
@@ -158,70 +224,151 @@ impl AsyncComponent for AppModel {
             set_default_size: (300, 600),
 
             gtk::Box {
-                set_orientation: gtk::Orientation::Vertical,
+                set_orientation: Orientation::Vertical,
 
-                adw::HeaderBar,
+                adw::HeaderBar {
+                    add_css_class: "flat"
+                },
 
-                gtk::Box {
-                    set_orientation: gtk::Orientation::Vertical,
+                #[transition(SlideUpDown)]
+                append = match model.daemon_state {
+                    DaemonState::Connected { .. } => {
+                        gtk::Box {
+                            set_orientation: Orientation::Vertical,
+                            set_valign: Align::Fill,
+                            set_margin_all: 20,
 
-                    gtk::Label {
-                        #[track = "model.changed(AppModel::daemon_state())"]
-                        set_label: &model.get_state_label(),
-                        set_margin_all: 5,
-                        add_css_class: "title-4",
-                        set_wrap: true,
+                            gtk::Spinner {
+                                #[track = "model.state_changed()"]
+                                set_spinning: model.is_connecting_or_reconnecting(),
+                                set_height_request: 64,
+                                set_width_request: 64,
+                                set_margin_all: 16,
+                            },
+
+                            gtk::Label {
+                                #[track = "model.state_changed()"]
+                                set_label?: &model.get_tunnel_state_label(),
+                                set_margin_bottom: 10,
+                                add_css_class: "title-4",
+                                set_wrap: true,
+                                set_halign: Align::Start
+                            },
+
+                            gtk::Label {
+                                #[track = "model.state_changed()"]
+                                set_label: &model.get_country(),
+                                set_margin_bottom: 0,
+                                add_css_class: "title-1",
+                                set_wrap: true,
+                                set_halign: Align::Start
+                            },
+
+                            gtk::Label {
+                                #[track = "model.state_changed()"]
+                                set_label: &model.get_city(),
+                                set_margin_bottom: 20,
+                                add_css_class: "title-1",
+                                set_wrap: true,
+                                set_halign: Align::Start
+                            },
+
+                            gtk::ListBox {
+                                add_css_class: "boxed-list",
+                                set_selection_mode: SelectionMode::None,
+                                set_margin_bottom: 20,
+
+                                #[track = "model.state_changed()"]
+                                set_visible: !model.get_hostname().is_empty(),
+
+                                adw::ExpanderRow {
+                                    #[track = "model.state_changed()"]
+                                    set_title: &model.get_hostname(),
+
+                                    add_row = &adw::ActionRow {
+                                        set_title: "Tunnel protocol",
+                                        set_css_classes: &["property", "monospace"],
+
+                                        #[track = "model.state_changed()"]
+                                        set_subtitle?: &model.get_tunnel_protocol(),
+                                    },
+
+                                    add_row = &adw::ActionRow {
+                                        set_title: "In",
+                                        set_css_classes: &["property", "monospace"],
+                                        set_subtitle_selectable: true,
+
+                                        #[track = "model.state_changed()"]
+                                        set_subtitle?: &model.get_tunnel_in(),
+                                    },
+
+                                    add_row = &adw::ActionRow {
+                                        set_title: "Out",
+                                        set_css_classes: &["property", "monospace"],
+                                        set_subtitle_selectable: true,
+
+                                        #[track = "model.state_changed()"]
+                                        set_subtitle?: &model.get_tunnel_out(),
+                                    },
+                                },
+                            },
+
+                            // Connection buttons box.
+                            gtk::Box {
+                                add_css_class: "linked",
+                                set_halign: Align::Center,
+                                set_valign: Align::End,
+                                set_vexpand: true,
+                                set_width_request: 300,
+
+                                gtk::Button {
+                                    connect_clicked => AppInput::SecureMyConnection,
+                                    set_hexpand: true,
+                                    set_label: &tr!("Secure my connection"),
+                                    set_css_classes: &["opaque", "secure_my_connection_btn"],
+
+                                    #[track = "model.changed(AppModel::daemon_state())"]
+                                    set_visible: model.can_secure_connection()
+                                },
+
+                                gtk::Button {
+                                    connect_clicked => AppInput::CancelConnection,
+                                    set_hexpand: true,
+                                    set_label: &tr!("Cancel"),
+                                    set_css_classes: &["opaque", "disconnect_btn"],
+
+                                    #[track = "model.state_changed()"]
+                                    set_visible: model.is_connecting_or_reconnecting()
+                                },
+
+                                gtk::Button {
+                                    connect_clicked => AppInput::Disconnect,
+                                    set_hexpand: true,
+                                    set_label: &tr!("Disconnect"),
+                                    set_css_classes: &["opaque", "disconnect_btn"],
+
+                                    #[track = "model.state_changed()"]
+                                    set_visible: model.can_disconnect()
+                                },
+
+                                gtk::Button {
+                                    connect_clicked => AppInput::Reconnect,
+                                    set_css_classes: &["opaque", "reconnect_btn"],
+                                    set_icon_name: icon_names::REFRESH_LARGE,
+
+                                    #[track = "model.state_changed()"]
+                                    set_visible: model.can_reconnect(),
+                                },
+                            }
+                        }
                     },
-
-                    gtk::Box {
-                        #[track = "model.changed(AppModel::daemon_state())"]
-                        set_visible: model.is_daemon_connected(),
-
-                        add_css_class: "linked",
-                        set_margin_all: 20,
-                        set_halign: Center,
-                        set_valign: End,
-                        set_vexpand: true,
-                        set_width_request: 300,
-
-                        gtk::Button {
-                            connect_clicked => AppInput::SecureMyConnection,
-                            set_hexpand: true,
-                            set_label: &tr!("Secure my connection"),
-                            set_css_classes: &["opaque", "secure_my_connection_btn"],
-
-                            #[track = "model.changed(AppModel::daemon_state())"]
-                            set_visible: model.can_secure_connection()
-                        },
-
-                        gtk::Button {
-                            connect_clicked => AppInput::CancelConnection,
-                            set_hexpand: true,
-                            set_label: &tr!("Cancel"),
-                            set_css_classes: &["opaque", "disconnect_btn"],
-
-                            #[track = "model.changed(AppModel::daemon_state())"]
-                            set_visible: model.can_cancel_connection()
-                        },
-
-                        gtk::Button {
-                            connect_clicked => AppInput::Disconnect,
-                            set_hexpand: true,
-                            set_label: &tr!("Disconnect"),
-                            set_css_classes: &["opaque", "disconnect_btn"],
-
-                            #[track = "model.changed(AppModel::daemon_state())"]
-                            set_visible: model.can_disconnect()
-                        },
-
-                        gtk::Button {
-                            connect_clicked => AppInput::Reconnect,
-                            set_css_classes: &["opaque", "reconnect_btn"],
-                            set_icon_name: icon_name::REFRESH_LARGE,
-
-                            #[track = "model.changed(AppModel::daemon_state())"]
-                            set_visible: model.can_reconnect(),
-                        },
+                    DaemonState::Connecting => {
+                        gtk::Label {
+                            set_label: &tr!("Connecting to Mullvad system service..."),
+                            set_margin_all: 5,
+                            add_css_class: "title-4",
+                            set_wrap: true
+                        }
                     }
                 }
             }
