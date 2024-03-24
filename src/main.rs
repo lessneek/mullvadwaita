@@ -230,144 +230,148 @@ impl AsyncComponent for AppModel {
                     add_css_class: "flat"
                 },
 
-                #[transition(SlideUpDown)]
-                append = match model.daemon_state {
-                    DaemonState::Connected { .. } => {
-                        gtk::Box {
-                            set_orientation: Orientation::Vertical,
-                            set_valign: Align::Fill,
-                            set_margin_all: 20,
+                adw::Clamp {
+                    set_maximum_size: 600,
 
-                            gtk::Spinner {
-                                #[track = "model.state_changed()"]
-                                set_spinning: model.is_connecting_or_reconnecting(),
-                                set_height_request: 64,
-                                set_width_request: 64,
-                                set_margin_all: 16,
-                            },
-
-                            gtk::Label {
-                                #[track = "model.state_changed()"]
-                                set_label?: &model.get_tunnel_state_label(),
-                                set_margin_bottom: 10,
-                                add_css_class: "title-4",
-                                set_wrap: true,
-                                set_halign: Align::Start
-                            },
-
-                            gtk::Label {
-                                #[track = "model.state_changed()"]
-                                set_label: &model.get_country(),
-                                set_margin_bottom: 0,
-                                add_css_class: "title-1",
-                                set_wrap: true,
-                                set_halign: Align::Start
-                            },
-
-                            gtk::Label {
-                                #[track = "model.state_changed()"]
-                                set_label: &model.get_city(),
-                                set_margin_bottom: 20,
-                                add_css_class: "title-1",
-                                set_wrap: true,
-                                set_halign: Align::Start
-                            },
-
-                            gtk::ListBox {
-                                add_css_class: "boxed-list",
-                                set_selection_mode: SelectionMode::None,
-                                set_margin_bottom: 20,
-
-                                #[track = "model.state_changed()"]
-                                set_visible: !model.get_hostname().is_empty(),
-
-                                adw::ExpanderRow {
-                                    #[track = "model.state_changed()"]
-                                    set_title: &model.get_hostname(),
-
-                                    add_row = &adw::ActionRow {
-                                        set_title: "Tunnel protocol",
-                                        set_css_classes: &["property", "monospace"],
-
-                                        #[track = "model.state_changed()"]
-                                        set_subtitle?: &model.get_tunnel_protocol(),
-                                    },
-
-                                    add_row = &adw::ActionRow {
-                                        set_title: "In",
-                                        set_css_classes: &["property", "monospace"],
-                                        set_subtitle_selectable: true,
-
-                                        #[track = "model.state_changed()"]
-                                        set_subtitle?: &model.get_tunnel_in(),
-                                    },
-
-                                    add_row = &adw::ActionRow {
-                                        set_title: "Out",
-                                        set_css_classes: &["property", "monospace"],
-                                        set_subtitle_selectable: true,
-
-                                        #[track = "model.state_changed()"]
-                                        set_subtitle?: &model.get_tunnel_out(),
-                                    },
-                                },
-                            },
-
-                            // Connection buttons box.
+                    #[transition(SlideUpDown)]
+                    match model.daemon_state {
+                        DaemonState::Connected { .. } => {
                             gtk::Box {
-                                add_css_class: "linked",
-                                set_halign: Align::Center,
-                                set_valign: Align::End,
-                                set_vexpand: true,
-                                set_width_request: 300,
+                                set_orientation: Orientation::Vertical,
+                                set_valign: Align::Fill,
+                                set_margin_all: 20,
 
-                                gtk::Button {
-                                    connect_clicked => AppInput::SecureMyConnection,
-                                    set_hexpand: true,
-                                    set_label: &tr!("Secure my connection"),
-                                    set_css_classes: &["opaque", "secure_my_connection_btn"],
-
-                                    #[track = "model.changed(AppModel::daemon_state())"]
-                                    set_visible: model.can_secure_connection()
+                                gtk::Spinner {
+                                    #[track = "model.state_changed()"]
+                                    set_spinning: model.is_connecting_or_reconnecting(),
+                                    set_height_request: 64,
+                                    set_width_request: 64,
+                                    set_margin_all: 16,
                                 },
 
-                                gtk::Button {
-                                    connect_clicked => AppInput::CancelConnection,
-                                    set_hexpand: true,
-                                    set_label: &tr!("Cancel"),
-                                    set_css_classes: &["opaque", "disconnect_btn"],
+                                gtk::Label {
+                                    #[track = "model.state_changed()"]
+                                    set_label?: &model.get_tunnel_state_label(),
+                                    set_margin_bottom: 10,
+                                    add_css_class: "title-4",
+                                    set_wrap: true,
+                                    set_halign: Align::Start
+                                },
+
+                                gtk::Label {
+                                    #[track = "model.state_changed()"]
+                                    set_label: &model.get_country(),
+                                    set_margin_bottom: 0,
+                                    add_css_class: "title-1",
+                                    set_wrap: true,
+                                    set_halign: Align::Start
+                                },
+
+                                gtk::Label {
+                                    #[track = "model.state_changed()"]
+                                    set_label: &model.get_city(),
+                                    set_margin_bottom: 20,
+                                    add_css_class: "title-1",
+                                    set_wrap: true,
+                                    set_halign: Align::Start
+                                },
+
+                                gtk::ListBox {
+                                    add_css_class: "boxed-list",
+                                    set_selection_mode: SelectionMode::None,
+                                    set_margin_bottom: 20,
 
                                     #[track = "model.state_changed()"]
-                                    set_visible: model.is_connecting_or_reconnecting()
+                                    set_visible: !model.get_hostname().is_empty(),
+
+                                    adw::ExpanderRow {
+                                        #[track = "model.state_changed()"]
+                                        set_title: &model.get_hostname(),
+
+                                        add_row = &adw::ActionRow {
+                                            set_title: "Tunnel protocol",
+                                            set_css_classes: &["property", "monospace"],
+
+                                            #[track = "model.state_changed()"]
+                                            set_subtitle?: &model.get_tunnel_protocol(),
+                                        },
+
+                                        add_row = &adw::ActionRow {
+                                            set_title: "In",
+                                            set_css_classes: &["property", "monospace"],
+                                            set_subtitle_selectable: true,
+
+                                            #[track = "model.state_changed()"]
+                                            set_subtitle?: &model.get_tunnel_in(),
+                                        },
+
+                                        add_row = &adw::ActionRow {
+                                            set_title: "Out",
+                                            set_css_classes: &["property", "monospace"],
+                                            set_subtitle_selectable: true,
+
+                                            #[track = "model.state_changed()"]
+                                            set_subtitle?: &model.get_tunnel_out(),
+                                        },
+                                    },
                                 },
 
-                                gtk::Button {
-                                    connect_clicked => AppInput::Disconnect,
-                                    set_hexpand: true,
-                                    set_label: &tr!("Disconnect"),
-                                    set_css_classes: &["opaque", "disconnect_btn"],
+                                // Connection buttons box.
+                                gtk::Box {
+                                    add_css_class: "linked",
+                                    set_halign: Align::Center,
+                                    set_valign: Align::End,
+                                    set_vexpand: true,
+                                    set_width_request: 300,
 
-                                    #[track = "model.state_changed()"]
-                                    set_visible: model.can_disconnect()
-                                },
+                                    gtk::Button {
+                                        connect_clicked => AppInput::SecureMyConnection,
+                                        set_hexpand: true,
+                                        set_label: &tr!("Secure my connection"),
+                                        set_css_classes: &["opaque", "secure_my_connection_btn"],
 
-                                gtk::Button {
-                                    connect_clicked => AppInput::Reconnect,
-                                    set_css_classes: &["opaque", "reconnect_btn"],
-                                    set_icon_name: icon_names::REFRESH_LARGE,
+                                        #[track = "model.changed(AppModel::daemon_state())"]
+                                        set_visible: model.can_secure_connection()
+                                    },
 
-                                    #[track = "model.state_changed()"]
-                                    set_visible: model.can_reconnect(),
-                                },
+                                    gtk::Button {
+                                        connect_clicked => AppInput::CancelConnection,
+                                        set_hexpand: true,
+                                        set_label: &tr!("Cancel"),
+                                        set_css_classes: &["opaque", "disconnect_btn"],
+
+                                        #[track = "model.state_changed()"]
+                                        set_visible: model.is_connecting_or_reconnecting()
+                                    },
+
+                                    gtk::Button {
+                                        connect_clicked => AppInput::Disconnect,
+                                        set_hexpand: true,
+                                        set_label: &tr!("Disconnect"),
+                                        set_css_classes: &["opaque", "disconnect_btn"],
+
+                                        #[track = "model.state_changed()"]
+                                        set_visible: model.can_disconnect()
+                                    },
+
+                                    gtk::Button {
+                                        connect_clicked => AppInput::Reconnect,
+                                        set_css_classes: &["opaque", "reconnect_btn"],
+                                        set_icon_name: icon_names::REFRESH_LARGE,
+
+                                        #[track = "model.state_changed()"]
+                                        set_visible: model.can_reconnect(),
+                                    },
+                                }
                             }
-                        }
-                    },
-                    DaemonState::Connecting => {
-                        gtk::Label {
-                            set_label: &tr!("Connecting to Mullvad system service..."),
-                            set_margin_all: 5,
-                            add_css_class: "title-4",
-                            set_wrap: true
+                        },
+                        DaemonState::Connecting => {
+                            gtk::Label {
+                                set_label: &tr!("Connecting to Mullvad system service..."),
+                                set_margin_all: 5,
+                                add_css_class: "title-4",
+                                set_wrap: true
+                            }
                         }
                     }
                 }
