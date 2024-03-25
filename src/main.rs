@@ -47,7 +47,7 @@ enum AppMsg {
 struct AppModel {
     #[no_eq]
     daemon_state: DaemonState,
-    #[no_eq]
+    #[do_not_track]
     daemon_connector: DaemonConnector,
 }
 
@@ -431,7 +431,7 @@ impl AsyncComponent for AppModel {
     ) {
         self.reset();
 
-        let daemon_connector = self.get_mut_daemon_connector();
+        let daemon_connector = &mut self.daemon_connector;
 
         match message {
             AppInput::SecureMyConnection => {
