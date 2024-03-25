@@ -202,6 +202,9 @@ impl AppModel {
             if let Some(ipv6) = loc.ipv6 {
                 write!(&mut out, "{}", &ipv6.to_string()).ok();
             }
+            if out.is_empty() {
+                out.push_str("...");
+            }
             out
         })
     }
