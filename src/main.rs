@@ -185,7 +185,15 @@ impl AppModel {
     }
 
     fn get_tunnel_protocol(&self) -> Option<String> {
-        self.get_endpoint().map(|te| te.tunnel_type.to_string())
+        self.get_endpoint().map(|te| {
+            let mut tp = te.tunnel_type.to_string();
+            if let Some(proxy) = te.proxy {
+                let _ = write!(&mut tp, " via {}", proxy.proxy_type);
+            } else if let Some(obf) = te.obfuscation {
+                let _ = write!(&mut tp, " via {}", obf.obfuscation_type);
+            }
+            tp
+        })
     }
 
     fn get_tunnel_in(&self) -> Option<String> {
