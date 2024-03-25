@@ -1,1 +1,3 @@
 icons = ["refresh-large"]
+
+icon_folder = "src/res/icons"

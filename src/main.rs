@@ -253,19 +253,62 @@ impl AsyncComponent for AppModel {
                     set_maximum_size: 600,
 
                     #[transition(SlideUpDown)]
-                    match model.daemon_state {
-                        DaemonState::Connected { .. } => {
+                    match &model.daemon_state {
+                        DaemonState::Connected { tunnel_state } => {
                             gtk::Box {
                                 set_orientation: Orientation::Vertical,
                                 set_valign: Align::Fill,
                                 set_margin_all: 20,
 
-                                gtk::Spinner {
-                                    #[track = "model.state_changed()"]
-                                    set_spinning: model.is_connecting_or_reconnecting(),
-                                    set_height_request: 64,
-                                    set_width_request: 64,
+                                adw::Bin {
+                                    set_height_request: 128,
+                                    set_width_request: 128,
                                     set_margin_all: 16,
+                                    set_halign: Align::Center,
+
+                                    match &**tunnel_state {
+                                        TunnelState::Connected { .. } => {
+                                            gtk::Image {
+                                                set_icon_name: Some("network-vpn"),
+                                                set_css_classes: &[
+                                                    "connection_state_icon",
+                                                    "connected"
+                                                ]
+                                            }
+                                        },
+                                        TunnelState::Connecting { .. } => {
+                                            gtk::Spinner {
+                                                set_spinning: true,
+                                                set_height_request: 64,
+                                                set_width_request: 64,
+                                                set_halign: Align::Center,
+                                                set_valign: Align::Center,
+                                            }
+                                        },
+                                        TunnelState::Disconnected { locked_down: true, .. } => {
+                                            gtk::Image {
+                                                set_icon_name: Some("network-vpn-disabled"),
+                                                set_css_classes: &[
+                                                    "connection_state_icon",
+                                                    "disabled"
+                                                ]
+                                            }
+                                        },
+                                        TunnelState::Disconnected { locked_down: false, .. } => {
+                                            gtk::Image {
+                                                set_icon_name: Some("network-vpn-disconnected"),
+                                                set_css_classes: &[
+                                                    "connection_state_icon",
+                                                    "disconnected"
+                                                ]
+                                            }
+                                        },
+                                        _ => {
+                                            gtk::Label {
+                                                set_label: "...",
+                                            }
+                                        }
+                                    }
                                 },
 
                                 gtk::Label {

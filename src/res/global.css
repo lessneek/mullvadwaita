@@ -16,3 +16,19 @@
 .connected_state_label {
     color: @success_color;
 }
+
+.connection_state_icon {
+    -gtk-icon-size: 128px;
+}
+
+.connection_state_icon.connected {
+    color: @success_bg_color;
+}
+
+.connection_state_icon.disconnected {
+    color: @destructive_bg_color;
+}
+
+.connection_state_icon.disabled {
+    color: @warning_bg_color;
+}
