@@ -210,10 +210,13 @@ impl AppModel {
         self.get_location().map(|loc| {
             let mut out = String::new();
             if let Some(ipv4) = loc.ipv4 {
-                writeln!(&mut out, "{}", &ipv4.to_string()).ok();
+                let _ = write!(&mut out, "{}", ipv4).ok();
             }
             if let Some(ipv6) = loc.ipv6 {
-                write!(&mut out, "{}", &ipv6.to_string()).ok();
+                if !out.is_empty() {
+                    out.push('\n');
+                }
+                let _ = write!(&mut out, "{}", ipv6).ok();
             }
             if out.is_empty() {
                 out.push_str("...");
@@ -269,7 +272,7 @@ impl AsyncComponent for AppModel {
                                     #[track = "model.state_changed()"]
                                     set_label?: &model.get_tunnel_state_label(),
                                     set_margin_bottom: 10,
-                                    
+
                                     #[track = "model.state_changed()"]
                                     set_css_classes: if model.is_connected() {
                                         &["title-4", "connected_state_label"]
