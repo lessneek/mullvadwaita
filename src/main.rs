@@ -89,6 +89,11 @@ impl AppModel {
         }
     }
 
+    fn is_connected(&self) -> bool {
+        self.get_tunnel_state()
+            .map_or(false, |ts| ts.is_connected())
+    }
+
     fn is_connecting_or_reconnecting(&self) -> bool {
         self.get_tunnel_state()
             .map(|ts| ts.is_connecting_or_reconnecting())
@@ -256,7 +261,14 @@ impl AsyncComponent for AppModel {
                                     #[track = "model.state_changed()"]
                                     set_label?: &model.get_tunnel_state_label(),
                                     set_margin_bottom: 10,
-                                    add_css_class: "title-4",
+                                    
+                                    #[track = "model.state_changed()"]
+                                    set_css_classes: if model.is_connected() {
+                                        &["title-4", "connected_state_label"]
+                                    } else {
+                                        &["title-4"]
+                                    },
+
                                     set_wrap: true,
                                     set_halign: Align::Start
                                 },

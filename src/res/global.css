@@ -1,14 +1,18 @@
 .secure_my_connection_btn {
-    color: white;
-    background-color: @green_3;
+    color: @success_fg_color;
+    background-color: @success_bg_color;
 }
 
 .disconnect_btn {
-    color: white;
-    background-color: @red_3;
+    color: @destructive_fg_color;
+    background-color: @destructive_bg_color;
 }
 
 .reconnect_btn {
-    color: white;
-    background-color: @red_3;
+    color: @destructive_fg_color;
+    background-color: @destructive_bg_color;
+}
+
+.connected_state_label {
+    color: @success_color;
 }
