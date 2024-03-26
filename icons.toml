@@ -1,3 +1,3 @@
-icons = ["refresh-large"]
+icons = ["refresh-large", "background-app-ghost"]
 
 icon_folder = "src/res/icons"

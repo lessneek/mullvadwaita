@@ -15,6 +15,7 @@ use crate::prelude::*;
 use anyhow::Result;
 use futures::FutureExt;
 use mullvad_types::location::GeoIpLocation;
+use relm4::actions::{RelmAction, RelmActionGroup};
 use smart_default::SmartDefault;
 
 use relm4::{
@@ -35,6 +36,7 @@ enum AppInput {
     CancelConnection,
     Disconnect,
     Reconnect,
+    About,
 }
 
 #[derive(Debug)]
@@ -238,6 +240,7 @@ impl AsyncComponent for AppModel {
     type CommandOutput = AppMsg;
 
     view! {
+        #[name = "main_window"]
         adw::Window {
             set_title: Some("Mullvad VPN"),
             set_default_size: (300, 600),
@@ -246,7 +249,11 @@ impl AsyncComponent for AppModel {
                 set_orientation: Orientation::Vertical,
 
                 adw::HeaderBar {
-                    add_css_class: "flat"
+                    add_css_class: "flat",
+                    pack_end = &gtk::MenuButton {
+                        set_icon_name: "open-menu-symbolic",
+                        set_menu_model: Some(&primary_menu),
+                    },
                 },
 
                 adw::Clamp {
@@ -448,6 +455,17 @@ impl AsyncComponent for AppModel {
         }
     }
 
+    menu! {
+        primary_menu: {
+            section! {
+                &tr!("Preferences") => PreferencesAction,
+            },
+            section! {
+                &tr!("About") => AboutAction,
+            },
+        }
+    }
+
     async fn init(
         _: Self::Init,
         root: Self::Root,
@@ -463,6 +481,18 @@ impl AsyncComponent for AppModel {
         let model = AppModel::default();
         let widgets = view_output!();
 
+        let mut group = RelmActionGroup::<WindowActionGroup>::new();
+
+        let sender_ = sender.clone();
+        let about_action: RelmAction<AboutAction> = RelmAction::new_stateless(move |_| {
+            sender_.input(AppInput::About);
+        });
+        group.add_action(about_action);
+
+        widgets
+            .main_window
+            .insert_action_group("win", Some(&group.into_action_group()));
+
         AsyncComponentParts { model, widgets }
     }
 
@@ -470,7 +500,7 @@ impl AsyncComponent for AppModel {
         &mut self,
         message: Self::Input,
         _sender: AsyncComponentSender<Self>,
-        _root: &Self::Root,
+        root: &Self::Root,
     ) {
         self.reset();
 
@@ -485,6 +515,25 @@ impl AsyncComponent for AppModel {
             }
             AppInput::CancelConnection | AppInput::Disconnect => {
                 let _ = daemon_connector.disconnect().await;
+            }
+            AppInput::About => {
+                let dialog = adw::AboutWindow::builder()
+                    .icon_name("background-app-ghost-symbolic")
+                    .application_icon("background-app-ghost-symbolic")
+                    .application_name("Mullvadwaita")
+                    .developer_name("Lessneek")
+                    .website("Website")
+                    .copyright("© 2024 Lessneek")
+                    .license_type(gtk::License::Gpl30)
+                    .website("https://github.com/lessneek/mullvadwaita")
+                    .issue_url("https://github.com/lessneek/mullvadwaita/issues")
+                    .version(env!("CARGO_PKG_VERSION"))
+                    .modal(true)
+                    .transient_for(root)
+                    .developers(vec!["Lessneek", "aiska"])
+                    .comments("Mullvad VPN daemon controller.")
+                    .build();
+                dialog.present();
             }
         }
     }
@@ -524,6 +573,10 @@ async fn listen_to_mullvad_events(out: relm4::Sender<AppMsg>) {
 
     trace!("Status updates stopped.");
 }
+
+relm4::new_action_group!(WindowActionGroup, "win");
+relm4::new_stateless_action!(PreferencesAction, WindowActionGroup, "preferences");
+relm4::new_stateless_action!(AboutAction, WindowActionGroup, "about");
 
 fn init_logger() -> Result<(), log::SetLoggerError> {
     simple_logger::SimpleLogger::new()
