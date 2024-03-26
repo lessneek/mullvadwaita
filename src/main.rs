@@ -279,7 +279,8 @@ impl AsyncComponent for AppModel {
                                                 set_icon_name: Some("network-vpn"),
                                                 set_css_classes: &[
                                                     "connection_state_icon",
-                                                    "connected"
+                                                    "connected",
+                                                    "icon-dropshadow"
                                                 ]
                                             }
                                         },
@@ -297,7 +298,8 @@ impl AsyncComponent for AppModel {
                                                 set_icon_name: Some("network-vpn-disabled"),
                                                 set_css_classes: &[
                                                     "connection_state_icon",
-                                                    "disabled"
+                                                    "disabled",
+                                                    "icon-dropshadow"
                                                 ]
                                             }
                                         },
@@ -306,7 +308,8 @@ impl AsyncComponent for AppModel {
                                                 set_icon_name: Some("network-vpn-disconnected"),
                                                 set_css_classes: &[
                                                     "connection_state_icon",
-                                                    "disconnected"
+                                                    "disconnected",
+                                                    "icon-dropshadow"
                                                 ]
                                             }
                                         },
