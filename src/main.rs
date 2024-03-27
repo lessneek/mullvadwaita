@@ -51,6 +51,7 @@ struct AppModel {
     daemon_state: DaemonState,
     #[do_not_track]
     daemon_connector: DaemonConnector,
+    banner_label: Option<String>,
 }
 
 #[derive(Debug, SmartDefault)]
@@ -112,17 +113,6 @@ impl AppModel {
         self.get_tunnel_state()
             .map(|ts| ts.is_connecting_or_connected())
             .unwrap_or(false)
-    }
-
-    fn get_banner_label(&self) -> Option<String> {
-        self.get_tunnel_state()
-            .and_then(|tunnel_state| -> Option<String> {
-                use TunnelState::*;
-                match tunnel_state {
-                    Error(error_state) => Some(format!("{}", error_state.cause())),
-                    _ => None,
-                }
-            })
     }
 
     fn get_tunnel_state_label(&self) -> Option<String> {
@@ -245,6 +235,19 @@ impl AppModel {
     fn state_changed(&self) -> bool {
         self.changed(AppModel::daemon_state())
     }
+
+    fn update_properties(&mut self) {
+        self.set_banner_label(
+            self.get_tunnel_state()
+                .and_then(|tunnel_state| -> Option<String> {
+                    use TunnelState::*;
+                    match tunnel_state {
+                        Error(error_state) => Some(format!("{}", error_state.cause())),
+                        _ => None,
+                    }
+                }),
+        );
+    }
 }
 
 #[relm4::component(async)]
@@ -272,10 +275,10 @@ impl AsyncComponent for AppModel {
                 },
 
                 adw::Banner {
-                    #[track = "model.state_changed()"]
-                    set_title: &model.get_banner_label().unwrap_or_default(),
+                    #[track = "model.changed(AppModel::banner_label())"]
+                    set_title?: model.get_banner_label().as_ref(),
 
-                    #[track = "model.state_changed()"]
+                    #[track = "model.changed(AppModel::banner_label())"]
                     set_revealed: model.get_banner_label().is_some()
                 },
 
@@ -577,6 +580,7 @@ impl AsyncComponent for AppModel {
                     Event::ConnectingToDaemon => DaemonState::Connecting,
                 };
                 self.set_daemon_state(daemon_state);
+                self.update_properties();
             }
         }
     }
