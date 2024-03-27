@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 use std::time::Duration;
 
-use anyhow::{Context, Ok, Result};
+use anyhow::{Ok, Result};
 
 use mullvad_management_interface::{client::DaemonEvent, MullvadProxyClient};
 use mullvad_types::states::TunnelState;
@@ -35,9 +35,7 @@ pub fn events_receiver() -> Receiver<Event> {
 }
 
 async fn events_listen(sender: &Sender<Event>) -> Result<()> {
-    let mut client = MullvadProxyClient::new()
-        .await
-        .context("mullvad proxy client connection")?;
+    let mut client = MullvadProxyClient::new().await?;
 
     let state = client.get_tunnel_state().await?;
     sender.send(Event::TunnelState(Box::new(state))).await?;
@@ -83,7 +81,6 @@ impl DaemonConnector {
         let client = client.get_or_insert(
             MullvadProxyClient::new()
                 .await
-                .context("mullvad proxy client connection")
                 .inspect_err(|e| debug!("{e:#?}"))?,
         );
 
