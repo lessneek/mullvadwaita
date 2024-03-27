@@ -98,7 +98,7 @@ impl AppModel {
 
     fn is_connecting_or_reconnecting(&self) -> bool {
         self.get_tunnel_state()
-            .map(|ts| ts.is_connecting_or_reconnecting())
+            .map(|ts| ts.is_connecting_or_reconnecting() || ts.is_in_error_state())
             .unwrap_or(false)
     }
 
@@ -114,8 +114,19 @@ impl AppModel {
             .unwrap_or(false)
     }
 
+    fn get_banner_label(&self) -> Option<String> {
+        self.get_tunnel_state()
+            .and_then(|tunnel_state| -> Option<String> {
+                use TunnelState::*;
+                match tunnel_state {
+                    Error(error_state) => Some(format!("{}", error_state.cause())),
+                    _ => None,
+                }
+            })
+    }
+
     fn get_tunnel_state_label(&self) -> Option<String> {
-        self.get_tunnel_state().map(|tunnel_state| {
+        self.get_tunnel_state().map(|tunnel_state| -> String {
             use TunnelState::*;
             match tunnel_state {
                 Connected { endpoint, .. } => {
@@ -149,7 +160,11 @@ impl AppModel {
                     tr!("CREATING SECURE CONNECTION")
                 }
                 Error(error_state) => {
-                    format!("{}: {:?}", tr!("ERROR"), error_state)
+                    if error_state.is_blocking() {
+                        tr!("BLOCKED CONNECTION")
+                    } else {
+                        tr!("UNSECURED CONNECTION")
+                    }
                 }
             }
         })
@@ -256,6 +271,14 @@ impl AsyncComponent for AppModel {
                     },
                 },
 
+                adw::Banner {
+                    #[track = "model.state_changed()"]
+                    set_title: &model.get_banner_label().unwrap_or_default(),
+
+                    #[track = "model.state_changed()"]
+                    set_revealed: model.get_banner_label().is_some()
+                },
+
                 adw::Clamp {
                     set_maximum_size: 600,
 
@@ -314,9 +337,7 @@ impl AsyncComponent for AppModel {
                                             }
                                         },
                                         _ => {
-                                            gtk::Label {
-                                                set_label: "...",
-                                            }
+                                            gtk::Label {}
                                         }
                                     }
                                 },
