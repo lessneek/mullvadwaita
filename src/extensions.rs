@@ -108,7 +108,9 @@ impl TunnelStateExt for TunnelState {
                     .or(location.obfuscator_hostname.as_ref())
                     .or(location.entry_hostname.as_ref())
                 {
-                    let _ = write!(hostname, " via {via}");
+                    if via != new_hostname {
+                        let _ = write!(hostname, " via {via}");
+                    }
                 }
                 hostname
             })
