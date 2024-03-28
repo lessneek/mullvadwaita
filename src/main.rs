@@ -21,7 +21,7 @@ use smart_default::SmartDefault;
 use relm4::{
     adw::{self, prelude::*},
     component::{AsyncComponent, AsyncComponentParts},
-    gtk::{prelude::*, Align, Orientation, SelectionMode},
+    gtk::{Align, Orientation, SelectionMode},
     AsyncComponentSender, RelmApp, RelmWidgetExt,
 };
 use relm4_icons::icon_names;
