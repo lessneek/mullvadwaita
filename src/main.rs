@@ -6,15 +6,12 @@ mod prelude;
 #[macro_use]
 extern crate tr;
 
-use std::fmt::Write;
-
 use crate::extensions::TunnelStateExt;
 use crate::mullvad::{DaemonConnector, Event};
 use crate::prelude::*;
 
 use anyhow::Result;
 use futures::FutureExt;
-use mullvad_types::location::GeoIpLocation;
 use relm4::actions::{RelmAction, RelmActionGroup};
 use smart_default::SmartDefault;
 
@@ -27,8 +24,17 @@ use relm4::{
 use relm4_icons::icon_names;
 
 use mullvad_types::states::TunnelState;
-use talpid_types::net::TunnelEndpoint;
 use talpid_types::tunnel::ActionAfterDisconnect;
+
+trait ToStr {
+    fn to_str(&self) -> &str;
+}
+
+impl ToStr for Option<String> {
+    fn to_str(self: &Option<String>) -> &str {
+        self.as_ref().map(|ss| ss.as_str()).unwrap_or_default()
+    }
+}
 
 #[derive(Debug)]
 enum AppInput {
@@ -52,6 +58,13 @@ struct AppModel {
     #[do_not_track]
     daemon_connector: DaemonConnector,
     banner_label: Option<String>,
+    tunnel_state_label: Option<String>,
+    country: Option<String>,
+    city: Option<String>,
+    hostname: Option<String>,
+    tunnel_protocol: Option<String>,
+    tunnel_in: Option<String>,
+    tunnel_out: Option<String>,
 }
 
 #[derive(Debug, SmartDefault)]
@@ -69,14 +82,6 @@ impl AppModel {
             DaemonState::Connected { tunnel_state } => Some(tunnel_state),
             _ => None,
         }
-    }
-
-    fn get_endpoint(&self) -> Option<&TunnelEndpoint> {
-        self.get_tunnel_state().and_then(|ts| ts.get_endpoint())
-    }
-
-    fn get_location(&self) -> Option<&GeoIpLocation> {
-        self.get_tunnel_state().and_then(|ts| ts.get_location())
     }
 
     fn can_secure_connection(&self) -> bool {
@@ -115,123 +120,6 @@ impl AppModel {
             .unwrap_or(false)
     }
 
-    fn get_tunnel_state_label(&self) -> Option<String> {
-        self.get_tunnel_state().map(|tunnel_state| -> String {
-            use TunnelState::*;
-            match tunnel_state {
-                Connected { endpoint, .. } => {
-                    if endpoint.quantum_resistant {
-                        tr!(
-                            // Creating a secure connection that isn't breakable by quantum computers.
-                            "QUANTUM SECURE CONNECTION"
-                        )
-                    } else {
-                        tr!("SECURE CONNECTION")
-                    }
-                }
-                Connecting { endpoint, .. } => {
-                    if endpoint.quantum_resistant {
-                        tr!("CREATING QUANTUM SECURE CONNECTION")
-                    } else {
-                        tr!("CREATING SECURE CONNECTION")
-                    }
-                }
-                Disconnected { locked_down, .. } => {
-                    if *locked_down {
-                        tr!("BLOCKED CONNECTION")
-                    } else {
-                        tr!("UNSECURED CONNECTION")
-                    }
-                }
-                Disconnecting(ActionAfterDisconnect::Nothing | ActionAfterDisconnect::Block) => {
-                    tr!("DISCONNECTING")
-                }
-                Disconnecting(ActionAfterDisconnect::Reconnect) => {
-                    tr!("CREATING SECURE CONNECTION")
-                }
-                Error(error_state) => {
-                    if error_state.is_blocking() {
-                        tr!("BLOCKED CONNECTION")
-                    } else {
-                        tr!("UNSECURED CONNECTION")
-                    }
-                }
-            }
-        })
-    }
-
-    fn get_country(&self) -> String {
-        self.get_tunnel_state()
-            .map_or(String::new(), |ts| ts.get_country())
-    }
-
-    fn get_city(&self) -> String {
-        self.get_tunnel_state()
-            .map_or(String::new(), |ts| ts.get_city())
-    }
-
-    fn get_hostname(&self) -> String {
-        let mut hostname = String::new();
-
-        if let Some(location) = self.get_tunnel_state().and_then(|ts| ts.get_location()) {
-            if let Some(new_hostname) = location.hostname.as_ref() {
-                hostname.push_str(new_hostname);
-                if let Some(via) = location
-                    .bridge_hostname
-                    .as_ref()
-                    .or(location.obfuscator_hostname.as_ref())
-                    .or(location.entry_hostname.as_ref())
-                {
-                    hostname.push_str(" via ");
-                    hostname.push_str(via);
-                }
-            }
-        }
-
-        hostname
-    }
-
-    fn get_tunnel_protocol(&self) -> Option<String> {
-        self.get_endpoint().map(|te| {
-            let mut tp = te.tunnel_type.to_string();
-            if let Some(proxy) = te.proxy {
-                let _ = write!(&mut tp, " via {}", proxy.proxy_type);
-            } else if let Some(obf) = te.obfuscation {
-                let _ = write!(&mut tp, " via {}", obf.obfuscation_type);
-            }
-            tp
-        })
-    }
-
-    fn get_tunnel_in(&self) -> Option<String> {
-        self.get_endpoint().and_then(|te| {
-            te.proxy
-                .map(|pep| pep.endpoint.to_string())
-                .or(te.obfuscation.map(|oep| oep.endpoint.to_string()))
-                .or(te.entry_endpoint.map(|eep| eep.to_string()))
-                .or(Some(te.endpoint.to_string()))
-        })
-    }
-
-    fn get_tunnel_out(&self) -> Option<String> {
-        self.get_location().map(|loc| {
-            let mut out = String::new();
-            if let Some(ipv4) = loc.ipv4 {
-                let _ = write!(&mut out, "{}", ipv4).ok();
-            }
-            if let Some(ipv6) = loc.ipv6 {
-                if !out.is_empty() {
-                    out.push('\n');
-                }
-                let _ = write!(&mut out, "{}", ipv6).ok();
-            }
-            if out.is_empty() {
-                out.push_str("...");
-            }
-            out
-        })
-    }
-
     fn state_changed(&self) -> bool {
         self.changed(AppModel::daemon_state())
     }
@@ -240,13 +128,29 @@ impl AppModel {
         self.set_banner_label(
             self.get_tunnel_state()
                 .and_then(|tunnel_state| -> Option<String> {
-                    use TunnelState::*;
                     match tunnel_state {
-                        Error(error_state) => Some(format!("{}", error_state.cause())),
+                        TunnelState::Error(error_state) => Some(format!("{}", error_state.cause())),
                         _ => None,
                     }
                 }),
         );
+
+        self.set_tunnel_state_label(
+            self.get_tunnel_state()
+                .map(|ts| ts.get_tunnel_state_label()),
+        );
+
+        self.set_country(self.get_tunnel_state().and_then(|ts| ts.get_country()));
+        self.set_city(self.get_tunnel_state().and_then(|ts| ts.get_city()));
+        self.set_hostname(self.get_tunnel_state().and_then(|ts| ts.get_hostname()));
+
+        self.set_tunnel_protocol(
+            self.get_tunnel_state()
+                .and_then(|ts| ts.get_tunnel_protocol()),
+        );
+
+        self.set_tunnel_in(self.get_tunnel_state().and_then(|ts| ts.get_tunnel_in()));
+        self.set_tunnel_out(self.get_tunnel_state().and_then(|ts| ts.get_tunnel_out()));
     }
 }
 
@@ -276,7 +180,7 @@ impl AsyncComponent for AppModel {
 
                 adw::Banner {
                     #[track = "model.changed(AppModel::banner_label())"]
-                    set_title?: model.get_banner_label().as_ref(),
+                    set_title: model.get_banner_label().to_str(),
 
                     #[track = "model.changed(AppModel::banner_label())"]
                     set_revealed: model.get_banner_label().is_some()
@@ -346,8 +250,8 @@ impl AsyncComponent for AppModel {
                                 },
 
                                 gtk::Label {
-                                    #[track = "model.state_changed()"]
-                                    set_label?: &model.get_tunnel_state_label(),
+                                    #[track = "model.changed(AppModel::tunnel_state_label())"]
+                                    set_label: model.get_tunnel_state_label().to_str(),
                                     set_margin_bottom: 10,
 
                                     #[track = "model.state_changed()"]
@@ -362,17 +266,17 @@ impl AsyncComponent for AppModel {
                                 },
 
                                 gtk::Label {
-                                    #[track = "model.state_changed()"]
-                                    set_label: &model.get_country(),
+                                    #[track = "model.changed(AppModel::country())"]
+                                    set_label: model.get_country().to_str(),
                                     set_margin_bottom: 0,
                                     add_css_class: "title-1",
                                     set_wrap: true,
-                                    set_halign: Align::Start
+                                    set_halign: Align::Start,
                                 },
 
                                 gtk::Label {
-                                    #[track = "model.state_changed()"]
-                                    set_label: &model.get_city(),
+                                    #[track = "model.changed(AppModel::city())"]
+                                    set_label: model.get_city().to_str(),
                                     set_margin_bottom: 20,
                                     add_css_class: "title-1",
                                     set_wrap: true,
@@ -384,19 +288,19 @@ impl AsyncComponent for AppModel {
                                     set_selection_mode: SelectionMode::None,
                                     set_margin_bottom: 20,
 
-                                    #[track = "model.state_changed()"]
-                                    set_visible: !model.get_hostname().is_empty(),
+                                    #[track = "model.changed(AppModel::hostname())"]
+                                    set_visible: model.get_hostname().is_some(),
 
                                     adw::ExpanderRow {
-                                        #[track = "model.state_changed()"]
-                                        set_title: &model.get_hostname(),
+                                        #[track = "model.changed(AppModel::hostname())"]
+                                        set_title: model.get_hostname().to_str(),
 
                                         add_row = &adw::ActionRow {
                                             set_title: "Tunnel protocol",
                                             set_css_classes: &["property", "monospace"],
 
-                                            #[track = "model.state_changed()"]
-                                            set_subtitle?: &model.get_tunnel_protocol(),
+                                            #[track = "model.changed(AppModel::tunnel_protocol())"]
+                                            set_subtitle: model.get_tunnel_protocol().to_str(),
                                         },
 
                                         add_row = &adw::ActionRow {
@@ -404,8 +308,8 @@ impl AsyncComponent for AppModel {
                                             set_css_classes: &["property", "monospace"],
                                             set_subtitle_selectable: true,
 
-                                            #[track = "model.state_changed()"]
-                                            set_subtitle?: &model.get_tunnel_in(),
+                                            #[track = "model.changed(AppModel::tunnel_in())"]
+                                            set_subtitle: model.get_tunnel_in().to_str(),
                                         },
 
                                         add_row = &adw::ActionRow {
@@ -413,8 +317,8 @@ impl AsyncComponent for AppModel {
                                             set_css_classes: &["property", "monospace"],
                                             set_subtitle_selectable: true,
 
-                                            #[track = "model.state_changed()"]
-                                            set_subtitle?: &model.get_tunnel_out(),
+                                            #[track = "model.changed(AppModel::tunnel_out())"]
+                                            set_subtitle: model.get_tunnel_out().to_str(),
                                         },
                                     },
                                 },
@@ -433,7 +337,7 @@ impl AsyncComponent for AppModel {
                                         set_label: &tr!("Secure my connection"),
                                         set_css_classes: &["opaque", "secure_my_connection_btn"],
 
-                                        #[track = "model.changed(AppModel::daemon_state())"]
+                                        #[track = "model.state_changed()"]
                                         set_visible: model.can_secure_connection()
                                     },
 
