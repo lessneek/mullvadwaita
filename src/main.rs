@@ -24,6 +24,7 @@ use relm4::{
 };
 use relm4_icons::icon_names;
 
+use mullvad_types::account::AccountData;
 use mullvad_types::device::AccountAndDevice;
 use mullvad_types::states::TunnelState;
 use talpid_types::tunnel::ActionAfterDisconnect;
@@ -59,6 +60,8 @@ struct AppModel {
     daemon_state: DaemonState,
     #[no_eq]
     account_and_device: Option<AccountAndDevice>,
+    #[no_eq]
+    account_data: Option<AccountData>,
     #[do_not_track]
     daemon_connector: DaemonConnector,
     device_name: Option<String>,
@@ -130,7 +133,7 @@ impl AppModel {
         self.changed(AppModel::daemon_state())
     }
 
-    async fn update_properties(&mut self) {
+    fn update_properties(&mut self) {
         self.set_banner_label(
             self.get_tunnel_state()
                 .and_then(|tunnel_state| -> Option<String> {
@@ -164,24 +167,16 @@ impl AppModel {
                 .map(|acc| tr!("<b>Device name</b>: {}", acc.device.pretty_name())),
         );
 
-        if let Some(acc) = self.get_account_and_device() {
-            let data = self
-                .daemon_connector
-                .get_account_data(acc.account_token.clone())
-                .await
-                .ok();
-
-            self.set_time_left(data.map(|data| {
-                let now = Utc::now();
-                if now >= data.expiry {
-                    tr!("<b>Expired</b>")
-                } else {
-                    let left = data.expiry - now;
-                    tr!("<b>Time left</b>: 1 day" | "<b>Time left</b>: {n} days" % left.num_days())
-                        .to_string()
-                }
-            }));
-        }
+        self.set_time_left(self.get_account_data().as_ref().map(|data| {
+            let now = Utc::now();
+            if now >= data.expiry {
+                tr!("<b>Expired</b>")
+            } else {
+                let left = data.expiry - now;
+                tr!("<b>Time left</b>: 1 day" | "<b>Time left</b>: {n} days" % left.num_days())
+                    .to_string()
+            }
+        }));
     }
 }
 
@@ -543,8 +538,9 @@ impl AsyncComponent for AppModel {
                     Event::DeviceState(device_state) => {
                         self.set_account_and_device(device_state.into_device());
                     }
+                    Event::AccountData(account_data) => self.set_account_data(Some(account_data)),
                 };
-                self.update_properties().await;
+                self.update_properties();
             }
         }
     }

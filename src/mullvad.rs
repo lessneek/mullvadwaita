@@ -15,6 +15,7 @@ use futures::StreamExt;
 pub enum Event {
     TunnelState(Box<TunnelState>),
     DeviceState(DeviceState),
+    AccountData(AccountData),
     ConnectingToDaemon,
 }
 
@@ -42,7 +43,12 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
     sender.send(Event::TunnelState(Box::new(state))).await?;
 
     let device = client.get_device().await?;
-    sender.send(Event::DeviceState(device)).await?;
+
+    if let Some(account_token) = device.get_account().map(|acc| acc.account_token.clone()) {
+        let account_data = client.get_account_data(account_token.clone()).await?;
+        sender.send(Event::AccountData(account_data)).await?;
+        sender.send(Event::DeviceState(device)).await?;
+    }
 
     while let Some(event) = client.events_listen().await?.next().await {
         match event? {
@@ -61,6 +67,7 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
             }
             DaemonEvent::Device(device) => {
                 trace!("Device event: {device:#?}");
+                sender.send(Event::DeviceState(device.new_state)).await?
             }
             DaemonEvent::RemoveDevice(device) => {
                 trace!("Remove device event: {device:#?}");
@@ -103,6 +110,7 @@ impl DaemonConnector {
         Ok(self.get_client().await?.reconnect_tunnel().await?)
     }
 
+    #[allow(dead_code)]
     pub async fn get_account_data(&mut self, account: String) -> Result<AccountData> {
         Ok(self.get_client().await?.get_account_data(account).await?)
     }
