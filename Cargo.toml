@@ -21,6 +21,7 @@ log = { version = "0.4.21", features = ["std", "max_level_trace"] }
 simple_logger = "4.3.3"
 anyhow = "1.0.81"
 smart-default = "0.7.1"
+chrono = "0.4.37"
 
 # Localization
 i18n-embed = { version = "0.14.1", features = [

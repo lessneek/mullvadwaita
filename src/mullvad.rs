@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::{Ok, Result};
 
 use mullvad_management_interface::{client::DaemonEvent, MullvadProxyClient};
-use mullvad_types::states::TunnelState;
+use mullvad_types::{account::AccountData, device::DeviceState, states::TunnelState};
 use smart_default::SmartDefault;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
@@ -14,6 +14,7 @@ use futures::StreamExt;
 #[derive(Debug)]
 pub enum Event {
     TunnelState(Box<TunnelState>),
+    DeviceState(DeviceState),
     ConnectingToDaemon,
 }
 
@@ -39,6 +40,9 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
 
     let state = client.get_tunnel_state().await?;
     sender.send(Event::TunnelState(Box::new(state))).await?;
+
+    let device = client.get_device().await?;
+    sender.send(Event::DeviceState(device)).await?;
 
     while let Some(event) = client.events_listen().await?.next().await {
         match event? {
@@ -97,5 +101,9 @@ impl DaemonConnector {
 
     pub async fn reconnect(&mut self) -> Result<bool> {
         Ok(self.get_client().await?.reconnect_tunnel().await?)
+    }
+
+    pub async fn get_account_data(&mut self, account: String) -> Result<AccountData> {
+        Ok(self.get_client().await?.get_account_data(account).await?)
     }
 }

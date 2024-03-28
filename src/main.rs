@@ -11,10 +11,11 @@ use crate::mullvad::{DaemonConnector, Event};
 use crate::prelude::*;
 
 use anyhow::Result;
+use chrono::prelude::*;
 use futures::FutureExt;
-use relm4::actions::{RelmAction, RelmActionGroup};
 use smart_default::SmartDefault;
 
+use relm4::actions::{RelmAction, RelmActionGroup};
 use relm4::{
     adw::{self, prelude::*},
     component::{AsyncComponent, AsyncComponentParts},
@@ -23,6 +24,7 @@ use relm4::{
 };
 use relm4_icons::icon_names;
 
+use mullvad_types::device::AccountAndDevice;
 use mullvad_types::states::TunnelState;
 use talpid_types::tunnel::ActionAfterDisconnect;
 
@@ -55,8 +57,12 @@ enum AppMsg {
 struct AppModel {
     #[no_eq]
     daemon_state: DaemonState,
+    #[no_eq]
+    account_and_device: Option<AccountAndDevice>,
     #[do_not_track]
     daemon_connector: DaemonConnector,
+    device_name: Option<String>,
+    time_left: Option<String>,
     banner_label: Option<String>,
     tunnel_state_label: Option<String>,
     country: Option<String>,
@@ -124,7 +130,7 @@ impl AppModel {
         self.changed(AppModel::daemon_state())
     }
 
-    fn update_properties(&mut self) {
+    async fn update_properties(&mut self) {
         self.set_banner_label(
             self.get_tunnel_state()
                 .and_then(|tunnel_state| -> Option<String> {
@@ -151,6 +157,31 @@ impl AppModel {
 
         self.set_tunnel_in(self.get_tunnel_state().and_then(|ts| ts.get_tunnel_in()));
         self.set_tunnel_out(self.get_tunnel_state().and_then(|ts| ts.get_tunnel_out()));
+
+        self.set_device_name(
+            self.get_account_and_device()
+                .as_ref()
+                .map(|acc| tr!("<b>Device name</b>: {}", acc.device.pretty_name())),
+        );
+
+        if let Some(acc) = self.get_account_and_device() {
+            let data = self
+                .daemon_connector
+                .get_account_data(acc.account_token.clone())
+                .await
+                .ok();
+
+            self.set_time_left(data.map(|data| {
+                let now = Utc::now();
+                if now >= data.expiry {
+                    tr!("<b>Expired</b>")
+                } else {
+                    let left = data.expiry - now;
+                    tr!("<b>Time left</b>: 1 day" | "<b>Time left</b>: {n} days" % left.num_days())
+                        .to_string()
+                }
+            }));
+        }
     }
 }
 
@@ -172,6 +203,7 @@ impl AsyncComponent for AppModel {
 
                 adw::HeaderBar {
                     add_css_class: "flat",
+
                     pack_end = &gtk::MenuButton {
                         set_icon_name: "open-menu-symbolic",
                         set_menu_model: Some(&primary_menu),
@@ -196,6 +228,30 @@ impl AsyncComponent for AppModel {
                                 set_orientation: Orientation::Vertical,
                                 set_valign: Align::Fill,
                                 set_margin_all: 20,
+
+                                gtk::Box {
+                                    set_orientation: Orientation::Horizontal,
+                                    set_halign: Align::Fill,
+
+                                    gtk::Label {
+                                        #[track = "model.changed(AppModel::device_name())"]
+                                        set_label: model.get_device_name().to_str(),
+                                        set_css_classes: &["caption"],
+                                        set_selectable: true,
+                                        set_use_markup: true,
+                                        set_hexpand: true,
+                                        set_margin_end: 10,
+                                        set_halign: Align::Start,
+                                    },
+                                    gtk::Label {
+                                        #[track = "model.changed(AppModel::time_left())"]
+                                        set_label: model.get_time_left().to_str(),
+                                        set_css_classes: &["caption"],
+                                        set_selectable: true,
+                                        set_use_markup: true,
+                                        set_halign: Align::End,
+                                    }
+                                },
 
                                 adw::Bin {
                                     set_height_request: 128,
@@ -477,14 +533,18 @@ impl AsyncComponent for AppModel {
     ) {
         match message {
             AppMsg::DaemonEvent(event) => {
-                let daemon_state = match event {
-                    Event::TunnelState(state) => DaemonState::Connected {
-                        tunnel_state: state,
-                    },
-                    Event::ConnectingToDaemon => DaemonState::Connecting,
+                match event {
+                    Event::TunnelState(state) => {
+                        self.set_daemon_state(DaemonState::Connected {
+                            tunnel_state: state,
+                        });
+                    }
+                    Event::ConnectingToDaemon => self.set_daemon_state(DaemonState::Connecting),
+                    Event::DeviceState(device_state) => {
+                        self.set_account_and_device(device_state.into_device());
+                    }
                 };
-                self.set_daemon_state(daemon_state);
-                self.update_properties();
+                self.update_properties().await;
             }
         }
     }
