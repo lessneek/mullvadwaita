@@ -2,24 +2,29 @@ mod extensions;
 mod mullvad;
 #[macro_use]
 mod prelude;
+mod ui;
 
 #[macro_use]
 extern crate tr;
 
+use std::convert::identity;
+
 use crate::extensions::TunnelStateExt;
 use crate::mullvad::{DaemonConnector, Event};
 use crate::prelude::*;
+use crate::ui::preferences::{PreferencesModel, PreferencesMsg};
 
 use anyhow::Result;
 use chrono::prelude::*;
 use futures::FutureExt;
 use smart_default::SmartDefault;
 
-use relm4::actions::{RelmAction, RelmActionGroup};
 use relm4::{
+    actions::{RelmAction, RelmActionGroup},
     adw::{self, prelude::*},
     component::{AsyncComponent, AsyncComponentParts},
     gtk::{Align, Orientation, SelectionMode},
+    prelude::*,
     AsyncComponentSender, RelmApp, RelmWidgetExt,
 };
 use relm4_icons::icon_names;
@@ -40,22 +45,23 @@ impl ToStr for Option<String> {
 }
 
 #[derive(Debug)]
-enum AppInput {
+pub enum AppInput {
     SecureMyConnection,
     CancelConnection,
     Disconnect,
     Reconnect,
+    Preferences,
     About,
 }
 
 #[derive(Debug)]
-enum AppMsg {
+pub enum AppMsg {
     DaemonEvent(Event),
 }
 
 #[tracker::track]
 #[derive(SmartDefault)]
-struct AppModel {
+pub struct AppModel {
     #[no_eq]
     daemon_state: DaemonState,
     #[no_eq]
@@ -74,6 +80,13 @@ struct AppModel {
     tunnel_protocol: Option<String>,
     tunnel_in: Option<String>,
     tunnel_out: Option<String>,
+
+    #[no_eq]
+    components: Option<AppComponents>,
+}
+
+pub struct AppComponents {
+    preferences: AsyncController<PreferencesModel>,
 }
 
 #[derive(Debug, SmartDefault)]
@@ -180,7 +193,7 @@ impl AppModel {
     }
 }
 
-#[relm4::component(async)]
+#[relm4::component(async, pub)]
 impl AsyncComponent for AppModel {
     type Init = ();
     type Input = AppInput;
@@ -441,8 +454,6 @@ impl AsyncComponent for AppModel {
         primary_menu: {
             section! {
                 &tr!("Preferences") => PreferencesAction,
-            },
-            section! {
                 &tr!("About") => AboutAction,
             },
         }
@@ -460,16 +471,32 @@ impl AsyncComponent for AppModel {
                 .boxed()
         });
 
-        let model = AppModel::default();
+        let model = AppModel {
+            components: Some(AppComponents {
+                preferences: PreferencesModel::builder()
+                    .launch(root.clone().upcast())
+                    .forward(sender.command_sender(), identity),
+            }),
+            ..Default::default()
+        };
+
         let widgets = view_output!();
 
         let mut group = RelmActionGroup::<WindowActionGroup>::new();
-
-        let sender_ = sender.clone();
-        let about_action: RelmAction<AboutAction> = RelmAction::new_stateless(move |_| {
-            sender_.input(AppInput::About);
-        });
-        group.add_action(about_action);
+        // PreferencesAction
+        {
+            let sender = sender.clone();
+            group.add_action(RelmAction::<PreferencesAction>::new_stateless(move |_| {
+                sender.input(AppInput::Preferences);
+            }));
+        }
+        // AboutAction
+        {
+            let sender = sender.clone();
+            group.add_action(RelmAction::<AboutAction>::new_stateless(move |_| {
+                sender.input(AppInput::About);
+            }));
+        }
 
         widgets
             .main_window
@@ -497,6 +524,11 @@ impl AsyncComponent for AppModel {
             }
             AppInput::CancelConnection | AppInput::Disconnect => {
                 let _ = daemon_connector.disconnect().await;
+            }
+            AppInput::Preferences => {
+                if let Some(components) = self.get_components() {
+                    components.preferences.emit(PreferencesMsg::Show);
+                }
             }
             AppInput::About => {
                 let dialog = adw::AboutWindow::builder()
