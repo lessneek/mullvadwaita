@@ -1,4 +1,4 @@
-use super::super::AppMsg;
+use super::app::AppMsg;
 use adw::prelude::*;
 use relm4::{
     component::{AsyncComponentParts, SimpleAsyncComponent},
