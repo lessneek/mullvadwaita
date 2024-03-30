@@ -450,7 +450,8 @@ impl AsyncComponent for AppModel {
         let model = AppModel {
             components: Some(AppComponents {
                 preferences: PreferencesModel::builder()
-                    .launch(root.clone().upcast())
+                    .transient_for(&root)
+                    .launch(())
                     .forward(sender.command_sender(), identity),
             }),
             ..Default::default()

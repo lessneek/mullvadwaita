@@ -19,15 +19,13 @@ pub enum PreferencesMsg {
 
 #[relm4::component(async, pub)]
 impl SimpleAsyncComponent for PreferencesModel {
-    type Init = gtk::Window;
+    type Init = ();
     type Input = PreferencesMsg;
     type Output = AppMsg;
     type Widgets = PreferencesWidgets;
 
     view! {
         adw::PreferencesWindow {
-            set_transient_for: Some(&parent_window),
-            set_modal: true,
             connect_close_request[sender] => move |_| {
                 sender.input(PreferencesMsg::Close);
                 gtk::glib::Propagation::Stop
@@ -36,7 +34,7 @@ impl SimpleAsyncComponent for PreferencesModel {
     }
 
     async fn init(
-        parent_window: Self::Init,
+        _: Self::Init,
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
