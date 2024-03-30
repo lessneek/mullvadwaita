@@ -9,7 +9,7 @@ use chrono::prelude::*;
 use futures::FutureExt;
 use smart_default::SmartDefault;
 
-use relm4::actions::{RelmAction, RelmActionGroup};
+use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::prelude::*;
 use relm4_icons::icon_names;
 
@@ -458,6 +458,9 @@ impl AsyncComponent for AppModel {
         };
 
         let widgets = view_output!();
+
+        let app = relm4::main_adw_application();
+        app.set_accelerators_for_action::<PreferencesAction>(&["<primary>comma"]);
 
         let mut group = RelmActionGroup::<WindowActionGroup>::new();
         // PreferencesAction
