@@ -246,7 +246,7 @@ impl AsyncComponent for AppModel {
                                     match &**tunnel_state {
                                         TunnelState::Connected { .. } => {
                                             gtk::Image {
-                                                set_icon_name: Some("network-vpn"),
+                                                set_icon_name: Some(icon_names::NETWORK_VPN),
                                                 set_css_classes: &[
                                                     "connection_state_icon",
                                                     "connected",
@@ -265,7 +265,7 @@ impl AsyncComponent for AppModel {
                                         },
                                         TunnelState::Disconnected { locked_down: true, .. } => {
                                             gtk::Image {
-                                                set_icon_name: Some("network-vpn-disabled"),
+                                                set_icon_name: Some(icon_names::NETWORK_VPN_DISABLED),
                                                 set_css_classes: &[
                                                     "connection_state_icon",
                                                     "disabled",
@@ -275,7 +275,7 @@ impl AsyncComponent for AppModel {
                                         },
                                         TunnelState::Disconnected { locked_down: false, .. } => {
                                             gtk::Image {
-                                                set_icon_name: Some("network-vpn-disconnected"),
+                                                set_icon_name: Some(icon_names::NETWORK_VPN_DISCONNECTED),
                                                 set_css_classes: &[
                                                     "connection_state_icon",
                                                     "disconnected",
