@@ -123,32 +123,29 @@ impl AppModel {
     }
 
     fn update_properties(&mut self) {
-        self.set_banner_label(
-            self.get_tunnel_state()
-                .and_then(|tunnel_state| -> Option<String> {
-                    match tunnel_state {
-                        TunnelState::Error(error_state) => Some(format!("{}", error_state.cause())),
-                        _ => None,
-                    }
-                }),
-        );
+        if let Some(ts) = self.get_tunnel_state() {
+            let banner_label = match ts {
+                TunnelState::Error(error_state) => Some(format!("{}", error_state.cause())),
+                _ => None,
+            };
 
-        self.set_tunnel_state_label(
-            self.get_tunnel_state()
-                .map(|ts| ts.get_tunnel_state_label()),
-        );
-
-        self.set_country(self.get_tunnel_state().and_then(|ts| ts.get_country()));
-        self.set_city(self.get_tunnel_state().and_then(|ts| ts.get_city()));
-        self.set_hostname(self.get_tunnel_state().and_then(|ts| ts.get_hostname()));
-
-        self.set_tunnel_protocol(
-            self.get_tunnel_state()
-                .and_then(|ts| ts.get_tunnel_protocol()),
-        );
-
-        self.set_tunnel_in(self.get_tunnel_state().and_then(|ts| ts.get_tunnel_in()));
-        self.set_tunnel_out(self.get_tunnel_state().and_then(|ts| ts.get_tunnel_out()));
+            let tunnel_state_label = Some(ts.get_tunnel_state_label());
+            let country = ts.get_country();
+            let city = ts.get_city();
+            let hostname = ts.get_hostname();
+            let tunnel_protocol = ts.get_tunnel_protocol();
+            let tunnel_in = ts.get_tunnel_in();
+            let tunnel_out = ts.get_tunnel_out();
+            
+            self.set_banner_label(banner_label);
+            self.set_tunnel_state_label(tunnel_state_label);
+            self.set_country(country);
+            self.set_city(city);
+            self.set_hostname(hostname);
+            self.set_tunnel_protocol(tunnel_protocol);
+            self.set_tunnel_in(tunnel_in);
+            self.set_tunnel_out(tunnel_out);
+        }
 
         self.set_device_name(
             self.get_account_and_device()
