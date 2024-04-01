@@ -11,7 +11,6 @@ use smart_default::SmartDefault;
 
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
 use relm4::prelude::*;
-use relm4_icons::icon_names;
 
 use adw::prelude::*;
 
@@ -243,7 +242,7 @@ impl AsyncComponent for AppModel {
                                     match &**tunnel_state {
                                         TunnelState::Connected { .. } => {
                                             gtk::Image {
-                                                set_icon_name: Some(icon_names::NETWORK_VPN),
+                                                set_icon_name: Some("network-vpn-symbolic"),
                                                 set_css_classes: &[
                                                     "connection_state_icon",
                                                     "connected",
@@ -262,7 +261,7 @@ impl AsyncComponent for AppModel {
                                         },
                                         TunnelState::Disconnected { locked_down: true, .. } => {
                                             gtk::Image {
-                                                set_icon_name: Some(icon_names::NETWORK_VPN_DISABLED),
+                                                set_icon_name: Some("network-vpn-disabled-symbolic"),
                                                 set_css_classes: &[
                                                     "connection_state_icon",
                                                     "disabled",
@@ -272,7 +271,7 @@ impl AsyncComponent for AppModel {
                                         },
                                         TunnelState::Disconnected { locked_down: false, .. } => {
                                             gtk::Image {
-                                                set_icon_name: Some(icon_names::NETWORK_VPN_DISCONNECTED),
+                                                set_icon_name: Some("network-vpn-disconnected-symbolic"),
                                                 set_css_classes: &[
                                                     "connection_state_icon",
                                                     "disconnected",
@@ -401,7 +400,7 @@ impl AsyncComponent for AppModel {
                                     gtk::Button {
                                         connect_clicked => AppInput::Reconnect,
                                         set_css_classes: &["opaque", "reconnect_btn"],
-                                        set_icon_name: icon_names::REFRESH_LARGE,
+                                        set_icon_name: "arrow-circular-top-right-symbolic",
 
                                         #[track = "model.state_changed()"]
                                         set_visible: model.can_reconnect(),
