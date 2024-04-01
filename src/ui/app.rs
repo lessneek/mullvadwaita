@@ -19,6 +19,8 @@ use mullvad_types::device::AccountAndDevice;
 use mullvad_types::states::TunnelState;
 use talpid_types::tunnel::ActionAfterDisconnect;
 
+use super::preferences::Pref;
+
 #[derive(Debug)]
 pub enum AppInput {
     SecureMyConnection,
@@ -27,6 +29,7 @@ pub enum AppInput {
     Reconnect,
     Preferences,
     About,
+    Set(Pref),
 }
 
 #[derive(Debug)]
@@ -39,12 +42,16 @@ pub enum AppMsg {
 pub struct AppModel {
     #[no_eq]
     daemon_state: DaemonState,
+
     #[no_eq]
     account_and_device: Option<AccountAndDevice>,
+
     #[no_eq]
     account_data: Option<AccountData>,
+
     #[do_not_track]
     daemon_connector: DaemonConnector,
+
     device_name: Option<String>,
     time_left: Option<String>,
     banner_label: Option<String>,
@@ -135,7 +142,7 @@ impl AppModel {
             let tunnel_protocol = ts.get_tunnel_protocol();
             let tunnel_in = ts.get_tunnel_in();
             let tunnel_out = ts.get_tunnel_out();
-            
+
             self.set_banner_label(banner_label);
             self.set_tunnel_state_label(tunnel_state_label);
             self.set_country(country);
@@ -448,7 +455,7 @@ impl AsyncComponent for AppModel {
                 preferences: PreferencesModel::builder()
                     .transient_for(&root)
                     .launch(())
-                    .forward(sender.command_sender(), identity),
+                    .forward(sender.input_sender(), identity),
             }),
             ..Default::default()
         };
@@ -506,6 +513,11 @@ impl AsyncComponent for AppModel {
                     components.preferences.emit(PreferencesMsg::Show);
                 }
             }
+            AppInput::Set(pref) => match pref {
+                Pref::LocalNetworkSharing(value) => {
+                    self.daemon_connector.set_allow_lan(value).await.ok();
+                }
+            },
             AppInput::About => {
                 let dialog = adw::AboutWindow::builder()
                     .icon_name("background-app-ghost-symbolic")
@@ -547,6 +559,13 @@ impl AsyncComponent for AppModel {
                         self.set_account_and_device(device_state.into_device());
                     }
                     Event::AccountData(account_data) => self.set_account_data(Some(account_data)),
+                    Event::Setting(settings) => {
+                        if let Some(components) = self.get_components() {
+                            components
+                                .preferences
+                                .emit(PreferencesMsg::UpdateSettings(settings));
+                        }
+                    }
                 };
                 self.update_properties();
             }

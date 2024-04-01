@@ -1,27 +1,38 @@
-use super::app::AppMsg;
+use super::app::AppInput;
 use adw::prelude::*;
+use mullvad_types::settings::Settings;
 use relm4::{
     component::{AsyncComponentParts, SimpleAsyncComponent},
     *,
 };
 
+use smart_default::SmartDefault;
+
 #[tracker::track]
-#[derive(Debug)]
+#[derive(Debug, SmartDefault)]
 pub struct PreferencesModel {
     window: adw::PreferencesWindow,
+    local_network_sharing: bool,
 }
 
 #[derive(Debug)]
 pub enum PreferencesMsg {
     Show,
     Close,
+    UpdateSettings(Settings),
+    Set(Pref),
+}
+
+#[derive(Debug)]
+pub enum Pref {
+    LocalNetworkSharing(bool),
 }
 
 #[relm4::component(async, pub)]
 impl SimpleAsyncComponent for PreferencesModel {
     type Init = ();
     type Input = PreferencesMsg;
-    type Output = AppMsg;
+    type Output = AppInput;
     type Widgets = PreferencesWidgets;
 
     view! {
@@ -30,6 +41,25 @@ impl SimpleAsyncComponent for PreferencesModel {
                 sender.input(PreferencesMsg::Close);
                 gtk::glib::Propagation::Stop
             },
+            add = &adw::PreferencesPage {
+                add = &adw::PreferencesGroup {
+                    set_title: &tr!("VPN"),
+                    add = &adw::SwitchRow {
+                        add_prefix = &gtk::Image {
+                            set_icon_name: Some("network-workgroup-symbolic"),
+                        },
+                        set_title: &tr!("Local network sharing"),
+                        set_subtitle: &tr!("This feature allows access to other devices on the local network, such as for sharing, printing, streaming, etc."),
+
+                        #[track = "model.changed(PreferencesModel::local_network_sharing())"]
+                        set_active: model.local_network_sharing,
+
+                        connect_active_notify[sender] => move |this| {
+                            sender.input(PreferencesMsg::Set(Pref::LocalNetworkSharing(this.is_active())));
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -40,7 +70,7 @@ impl SimpleAsyncComponent for PreferencesModel {
     ) -> AsyncComponentParts<Self> {
         let model = PreferencesModel {
             window: root.clone(),
-            tracker: 0,
+            ..Default::default()
         };
 
         let widgets = view_output!();
@@ -48,12 +78,20 @@ impl SimpleAsyncComponent for PreferencesModel {
         AsyncComponentParts { model, widgets }
     }
 
-    async fn update(&mut self, message: Self::Input, _sender: AsyncComponentSender<Self>) {
+    async fn update(&mut self, message: Self::Input, sender: AsyncComponentSender<Self>) {
         self.reset();
 
         match message {
             PreferencesMsg::Show => self.window.present(),
             PreferencesMsg::Close => self.window.set_visible(false),
+            PreferencesMsg::UpdateSettings(settings) => {
+                self.set_local_network_sharing(settings.allow_lan);
+            }
+            PreferencesMsg::Set(pref) => {
+                if let Some(err) = sender.output(AppInput::Set(pref)).err() {
+                    log::error!("{err:#?}");
+                };
+            }
         }
     }
 }

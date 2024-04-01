@@ -5,7 +5,9 @@ use std::time::Duration;
 use anyhow::{Ok, Result};
 
 use mullvad_management_interface::{client::DaemonEvent, MullvadProxyClient};
-use mullvad_types::{account::AccountData, device::DeviceState, states::TunnelState};
+use mullvad_types::{
+    account::AccountData, device::DeviceState, settings::Settings, states::TunnelState,
+};
 use smart_default::SmartDefault;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 
@@ -16,6 +18,7 @@ pub enum Event {
     TunnelState(Box<TunnelState>),
     DeviceState(DeviceState),
     AccountData(AccountData),
+    Setting(Settings),
     ConnectingToDaemon,
 }
 
@@ -50,6 +53,9 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
         sender.send(Event::DeviceState(device)).await?;
     }
 
+    let settings = client.get_settings().await?;
+    sender.send(Event::Setting(settings)).await?;
+
     while let Some(event) = client.events_listen().await?.next().await {
         match event? {
             DaemonEvent::TunnelState(new_state) => {
@@ -58,6 +64,7 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
             }
             DaemonEvent::Settings(settings) => {
                 trace!("New settings: {settings:#?}");
+                sender.send(Event::Setting(settings)).await?;
             }
             DaemonEvent::RelayList(relay_list) => {
                 trace!("New relay list: {relay_list:#?}");
@@ -113,5 +120,14 @@ impl DaemonConnector {
     #[allow(dead_code)]
     pub async fn get_account_data(&mut self, account: String) -> Result<AccountData> {
         Ok(self.get_client().await?.get_account_data(account).await?)
+    }
+
+    #[allow(dead_code)]
+    pub async fn get_settings(&mut self) -> Result<Settings> {
+        Ok(self.get_client().await?.get_settings().await?)
+    }
+
+    pub async fn set_allow_lan(&mut self, state: bool) -> Result<()> {
+        Ok(self.get_client().await?.set_allow_lan(state).await?)
     }
 }
