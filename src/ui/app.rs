@@ -517,6 +517,9 @@ impl AsyncComponent for AppModel {
                 Pref::LocalNetworkSharing(value) => {
                     self.daemon_connector.set_allow_lan(value).await.ok();
                 }
+                Pref::LockdownMode(value) => {
+                    self.daemon_connector.set_block_when_disconnected(value).await.ok();
+                }
             },
             AppInput::About => {
                 let dialog = adw::AboutWindow::builder()

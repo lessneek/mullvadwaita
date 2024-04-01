@@ -130,4 +130,8 @@ impl DaemonConnector {
     pub async fn set_allow_lan(&mut self, state: bool) -> Result<()> {
         Ok(self.get_client().await?.set_allow_lan(state).await?)
     }
+
+    pub async fn set_block_when_disconnected(&mut self, state: bool) -> Result<()> {
+        Ok(self.get_client().await?.set_block_when_disconnected(state).await?)
+    }
 }

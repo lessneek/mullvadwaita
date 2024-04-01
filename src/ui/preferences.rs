@@ -12,7 +12,9 @@ use smart_default::SmartDefault;
 #[derive(Debug, SmartDefault)]
 pub struct PreferencesModel {
     window: adw::PreferencesWindow,
+
     local_network_sharing: bool,
+    lockdown_mode: bool,
 }
 
 #[derive(Debug)]
@@ -26,6 +28,7 @@ pub enum PreferencesMsg {
 #[derive(Debug)]
 pub enum Pref {
     LocalNetworkSharing(bool),
+    LockdownMode(bool),
 }
 
 #[relm4::component(async, pub)]
@@ -57,6 +60,21 @@ impl SimpleAsyncComponent for PreferencesModel {
                         connect_active_notify[sender] => move |this| {
                             sender.input(PreferencesMsg::Set(Pref::LocalNetworkSharing(this.is_active())));
                         }
+                    },
+
+                    add = &adw::SwitchRow {
+                        add_prefix = &gtk::Image {
+                            set_icon_name: Some("security-high-symbolic"),
+                        },
+                        set_title: &tr!("Lockdown mode"),
+                        set_subtitle: &tr!("The difference between the Kill Switch and Lockdown Mode is that the Kill Switch will prevent any leaks from happening during automatic tunnel reconnects, software crashes and similar accidents."),
+
+                        #[track = "model.changed(PreferencesModel::lockdown_mode())"]
+                        set_active: model.lockdown_mode,
+
+                        connect_active_notify[sender] => move |this| {
+                            sender.input(PreferencesMsg::Set(Pref::LockdownMode(this.is_active())));
+                        }
                     }
                 }
             }
@@ -86,6 +104,7 @@ impl SimpleAsyncComponent for PreferencesModel {
             PreferencesMsg::Close => self.window.set_visible(false),
             PreferencesMsg::UpdateSettings(settings) => {
                 self.set_local_network_sharing(settings.allow_lan);
+                self.set_lockdown_mode(settings.block_when_disconnected);
             }
             PreferencesMsg::Set(pref) => {
                 if let Some(err) = sender.output(AppInput::Set(pref)).err() {
