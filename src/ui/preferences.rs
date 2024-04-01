@@ -22,7 +22,6 @@ pub enum PreferencesMsg {
     Show,
     Close,
     UpdateSettings(Settings),
-    Set(Pref),
 }
 
 #[derive(Debug)]
@@ -58,7 +57,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                         set_active: model.local_network_sharing,
 
                         connect_active_notify[sender] => move |this| {
-                            sender.input(PreferencesMsg::Set(Pref::LocalNetworkSharing(this.is_active())));
+                            let _ = sender.output(AppInput::Set(Pref::LocalNetworkSharing(this.is_active())));
                         }
                     },
 
@@ -73,7 +72,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                         set_active: model.lockdown_mode,
 
                         connect_active_notify[sender] => move |this| {
-                            sender.input(PreferencesMsg::Set(Pref::LockdownMode(this.is_active())));
+                            let _ = sender.output(AppInput::Set(Pref::LockdownMode(this.is_active())));
                         }
                     }
                 }
@@ -96,7 +95,7 @@ impl SimpleAsyncComponent for PreferencesModel {
         AsyncComponentParts { model, widgets }
     }
 
-    async fn update(&mut self, message: Self::Input, sender: AsyncComponentSender<Self>) {
+    async fn update(&mut self, message: Self::Input, _sender: AsyncComponentSender<Self>) {
         self.reset();
 
         match message {
@@ -105,11 +104,6 @@ impl SimpleAsyncComponent for PreferencesModel {
             PreferencesMsg::UpdateSettings(settings) => {
                 self.set_local_network_sharing(settings.allow_lan);
                 self.set_lockdown_mode(settings.block_when_disconnected);
-            }
-            PreferencesMsg::Set(pref) => {
-                if let Some(err) = sender.output(AppInput::Set(pref)).err() {
-                    log::error!("{err:#?}");
-                };
             }
         }
     }
