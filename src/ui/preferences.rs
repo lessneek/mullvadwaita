@@ -82,6 +82,17 @@ impl SimpleAsyncComponent for PreferencesModel {
                         add_prefix = &gtk::Image {
                             set_icon_name: Some("globe-alt2-symbolic"),
                         },
+                        add_suffix = &gtk::Button {
+                            set_icon_name: "info-outline-symbolic",
+                            set_valign: gtk::Align::Center,
+                            set_css_classes: &["flat"],
+                            connect_clicked => move |_| {
+                                gtk::AlertDialog::builder()
+                                    .message(tr!("IPv4 is always enabled and the majority of websites and applications use this protocol. We do not recommend enabling IPv6 unless you know you need it."))
+                                    .build()
+                                    .show(Some(&root));
+                            }
+                        },
                         set_title: &tr!("Enable IPv6"),
                         set_subtitle: &tr!("When this feature is enabled, IPv6 can be used alongside IPv4 in the VPN tunnel to communicate with internet services."),
 
