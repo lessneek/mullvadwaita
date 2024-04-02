@@ -520,6 +520,9 @@ impl AsyncComponent for AppModel {
                 Pref::LockdownMode(value) => {
                     self.daemon_connector.set_block_when_disconnected(value).await.ok();
                 }
+                Pref::EnableIPv6(value) => {
+                    self.daemon_connector.set_enable_ipv6(value).await.ok();
+                }
             },
             AppInput::About => {
                 let dialog = adw::AboutWindow::builder()

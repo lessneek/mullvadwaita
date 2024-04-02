@@ -134,4 +134,8 @@ impl DaemonConnector {
     pub async fn set_block_when_disconnected(&mut self, state: bool) -> Result<()> {
         Ok(self.get_client().await?.set_block_when_disconnected(state).await?)
     }
+
+    pub async fn set_enable_ipv6(&mut self, state: bool) -> Result<()> {
+        Ok(self.get_client().await?.set_enable_ipv6(state).await?)
+    }
 }

@@ -15,6 +15,7 @@ pub struct PreferencesModel {
 
     local_network_sharing: bool,
     lockdown_mode: bool,
+    enable_ipv6: bool,
 }
 
 #[derive(Debug)]
@@ -28,6 +29,7 @@ pub enum PreferencesMsg {
 pub enum Pref {
     LocalNetworkSharing(bool),
     LockdownMode(bool),
+    EnableIPv6(bool),
 }
 
 #[relm4::component(async, pub)]
@@ -74,6 +76,21 @@ impl SimpleAsyncComponent for PreferencesModel {
                         connect_active_notify[sender] => move |this| {
                             let _ = sender.output(AppInput::Set(Pref::LockdownMode(this.is_active())));
                         }
+                    },
+
+                    add = &adw::SwitchRow {
+                        add_prefix = &gtk::Image {
+                            set_icon_name: Some("globe-alt2-symbolic"),
+                        },
+                        set_title: &tr!("Enable IPv6"),
+                        set_subtitle: &tr!("When this feature is enabled, IPv6 can be used alongside IPv4 in the VPN tunnel to communicate with internet services."),
+
+                        #[track = "model.changed(PreferencesModel::enable_ipv6())"]
+                        set_active: model.enable_ipv6,
+
+                        connect_active_notify[sender] => move |this| {
+                            let _ = sender.output(AppInput::Set(Pref::EnableIPv6(this.is_active())));
+                        }
                     }
                 }
             }
@@ -104,6 +121,7 @@ impl SimpleAsyncComponent for PreferencesModel {
             PreferencesMsg::UpdateSettings(settings) => {
                 self.set_local_network_sharing(settings.allow_lan);
                 self.set_lockdown_mode(settings.block_when_disconnected);
+                self.set_enable_ipv6(settings.tunnel_options.generic.enable_ipv6);
             }
         }
     }
