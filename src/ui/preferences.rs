@@ -16,6 +16,7 @@ pub struct PreferencesModel {
     local_network_sharing: bool,
     lockdown_mode: bool,
     enable_ipv6: bool,
+    auto_connect: bool,
 }
 
 #[derive(Debug)]
@@ -27,6 +28,7 @@ pub enum PreferencesMsg {
 
 #[derive(Debug)]
 pub enum Pref {
+    AutoConnect(bool),
     LocalNetworkSharing(bool),
     LockdownMode(bool),
     EnableIPv6(bool),
@@ -48,6 +50,22 @@ impl SimpleAsyncComponent for PreferencesModel {
             add = &adw::PreferencesPage {
                 add = &adw::PreferencesGroup {
                     set_title: &tr!("VPN"),
+                    
+                    add = &adw::SwitchRow {
+                        add_prefix = &gtk::Image {
+                            set_icon_name: Some("network-vpn-symbolic"),
+                        },
+                        set_title: &tr!("Auto-connect"),
+                        set_subtitle: &tr!("Automatically connect to a server when the app launches."),
+
+                        #[track = "model.changed(PreferencesModel::auto_connect())"]
+                        set_active: model.auto_connect,
+
+                        connect_active_notify[sender] => move |this| {
+                            let _ = sender.output(AppInput::Set(Pref::AutoConnect(this.is_active())));
+                        }
+                    },
+
                     add = &adw::SwitchRow {
                         add_prefix = &gtk::Image {
                             set_icon_name: Some("network-workgroup-symbolic"),
@@ -86,7 +104,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                             set_icon_name: "info-outline-symbolic",
                             set_valign: gtk::Align::Center,
                             set_css_classes: &["flat"],
-                            connect_clicked => move |_| {
+                            connect_clicked[root] => move |_| {
                                 gtk::AlertDialog::builder()
                                     .message(tr!("IPv4 is always enabled and the majority of websites and applications use this protocol. We do not recommend enabling IPv6 unless you know you need it."))
                                     .build()
@@ -130,6 +148,7 @@ impl SimpleAsyncComponent for PreferencesModel {
             PreferencesMsg::Show => self.window.present(),
             PreferencesMsg::Close => self.window.set_visible(false),
             PreferencesMsg::UpdateSettings(settings) => {
+                self.set_auto_connect(settings.auto_connect);
                 self.set_local_network_sharing(settings.allow_lan);
                 self.set_lockdown_mode(settings.block_when_disconnected);
                 self.set_enable_ipv6(settings.tunnel_options.generic.enable_ipv6);

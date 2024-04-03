@@ -127,6 +127,10 @@ impl DaemonConnector {
         Ok(self.get_client().await?.get_settings().await?)
     }
 
+    pub async fn set_auto_connect(&mut self, state: bool) -> Result<()> {
+        Ok(self.get_client().await?.set_auto_connect(state).await?)
+    }
+
     pub async fn set_allow_lan(&mut self, state: bool) -> Result<()> {
         Ok(self.get_client().await?.set_allow_lan(state).await?)
     }

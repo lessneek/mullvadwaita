@@ -514,6 +514,9 @@ impl AsyncComponent for AppModel {
                 }
             }
             AppInput::Set(pref) => match pref {
+                Pref::AutoConnect(value) => {
+                    self.daemon_connector.set_auto_connect(value).await.ok();
+                }
                 Pref::LocalNetworkSharing(value) => {
                     self.daemon_connector.set_allow_lan(value).await.ok();
                 }
