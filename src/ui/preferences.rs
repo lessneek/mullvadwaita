@@ -50,12 +50,12 @@ impl SimpleAsyncComponent for PreferencesModel {
             add = &adw::PreferencesPage {
                 add = &adw::PreferencesGroup {
                     set_title: &tr!("VPN"),
-                    
+
                     add = &adw::SwitchRow {
+                        set_title: &tr!("Auto-connect"),
                         add_prefix = &gtk::Image {
                             set_icon_name: Some("network-vpn-symbolic"),
                         },
-                        set_title: &tr!("Auto-connect"),
                         set_subtitle: &tr!("Automatically connect to a server when the app launches."),
 
                         #[track = "model.changed(PreferencesModel::auto_connect())"]
@@ -67,10 +67,10 @@ impl SimpleAsyncComponent for PreferencesModel {
                     },
 
                     add = &adw::SwitchRow {
+                        set_title: &tr!("Local network sharing"),
                         add_prefix = &gtk::Image {
                             set_icon_name: Some("network-workgroup-symbolic"),
                         },
-                        set_title: &tr!("Local network sharing"),
                         set_subtitle: &tr!("This feature allows access to other devices on the local network, such as for sharing, printing, streaming, etc."),
 
                         #[track = "model.changed(PreferencesModel::local_network_sharing())"]
@@ -82,10 +82,10 @@ impl SimpleAsyncComponent for PreferencesModel {
                     },
 
                     add = &adw::SwitchRow {
+                        set_title: &tr!("Lockdown mode"),
                         add_prefix = &gtk::Image {
                             set_icon_name: Some("security-high-symbolic"),
                         },
-                        set_title: &tr!("Lockdown mode"),
                         set_subtitle: &tr!("The difference between the Kill Switch and Lockdown Mode is that the Kill Switch will prevent any leaks from happening during automatic tunnel reconnects, software crashes and similar accidents."),
 
                         #[track = "model.changed(PreferencesModel::lockdown_mode())"]
@@ -97,6 +97,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                     },
 
                     add = &adw::SwitchRow {
+                        set_title: &tr!("Enable IPv6"),
                         add_prefix = &gtk::Image {
                             set_icon_name: Some("globe-alt2-symbolic"),
                         },
@@ -111,7 +112,6 @@ impl SimpleAsyncComponent for PreferencesModel {
                                     .show(Some(&root));
                             }
                         },
-                        set_title: &tr!("Enable IPv6"),
                         set_subtitle: &tr!("When this feature is enabled, IPv6 can be used alongside IPv4 in the VPN tunnel to communicate with internet services."),
 
                         #[track = "model.changed(PreferencesModel::enable_ipv6())"]
