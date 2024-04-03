@@ -14,8 +14,9 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 use futures::StreamExt;
 
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 pub enum Event {
-    TunnelState(Box<TunnelState>),
+    TunnelState(TunnelState),
     DeviceState(DeviceState),
     AccountData(AccountData),
     Setting(Settings),
@@ -43,7 +44,7 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
     let mut client = MullvadProxyClient::new().await?;
 
     let state = client.get_tunnel_state().await?;
-    sender.send(Event::TunnelState(Box::new(state))).await?;
+    sender.send(Event::TunnelState(state)).await?;
 
     let device = client.get_device().await?;
 
@@ -60,7 +61,7 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
         match event? {
             DaemonEvent::TunnelState(new_state) => {
                 trace!("New tunnel state: {new_state:#?}");
-                sender.send(Event::TunnelState(Box::new(new_state))).await?;
+                sender.send(Event::TunnelState(new_state)).await?;
             }
             DaemonEvent::Settings(settings) => {
                 trace!("New settings: {settings:#?}");

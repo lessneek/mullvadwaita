@@ -72,9 +72,10 @@ pub struct AppComponents {
 }
 
 #[derive(Debug, SmartDefault)]
+#[allow(clippy::large_enum_variant)]
 enum DaemonState {
     Connected {
-        tunnel_state: Box<TunnelState>,
+        tunnel_state: TunnelState,
     },
     #[default]
     Connecting,
@@ -91,7 +92,7 @@ impl AppModel {
     fn can_secure_connection(&self) -> bool {
         match &self.daemon_state {
             DaemonState::Connected { tunnel_state } => matches!(
-                **tunnel_state,
+                tunnel_state,
                 TunnelState::Disconnected { .. }
                     | TunnelState::Disconnecting(
                         ActionAfterDisconnect::Nothing | ActionAfterDisconnect::Block
@@ -246,7 +247,7 @@ impl AsyncComponent for AppModel {
                                     set_margin_all: 16,
                                     set_halign: gtk::Align::Center,
 
-                                    match &**tunnel_state {
+                                    match tunnel_state {
                                         TunnelState::Connected { .. } => {
                                             gtk::Image {
                                                 set_icon_name: Some("network-vpn-symbolic"),
@@ -521,7 +522,10 @@ impl AsyncComponent for AppModel {
                     self.daemon_connector.set_allow_lan(value).await.ok();
                 }
                 Pref::LockdownMode(value) => {
-                    self.daemon_connector.set_block_when_disconnected(value).await.ok();
+                    self.daemon_connector
+                        .set_block_when_disconnected(value)
+                        .await
+                        .ok();
                 }
                 Pref::EnableIPv6(value) => {
                     self.daemon_connector.set_enable_ipv6(value).await.ok();
