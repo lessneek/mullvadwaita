@@ -61,13 +61,14 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
     if let Some(account_token) = device.get_account().map(|acc| acc.account_token.clone()) {
         let account_data = client.get_account_data(account_token.clone()).await?;
         sender.send(Event::AccountData(account_data)).await?;
-        sender
-            .send(Event::Device(DeviceEvent {
-                cause: DeviceEventCause::Updated,
-                new_state: device,
-            }))
-            .await?;
     }
+
+    sender
+        .send(Event::Device(DeviceEvent {
+            cause: DeviceEventCause::Updated,
+            new_state: device,
+        }))
+        .await?;
 
     let settings = client.get_settings().await?;
     sender.send(Event::Setting(settings)).await?;
