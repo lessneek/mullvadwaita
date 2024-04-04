@@ -1,17 +1,12 @@
 mod extensions;
 mod mullvad;
-#[macro_use]
-mod prelude;
 mod ui;
 
-#[macro_use]
-extern crate tr;
-
-use prelude::*;
 use ui::app::AppModel;
 
 use anyhow::Result;
 use relm4::RelmApp;
+use tr::tr;
 
 fn init_logger() -> Result<(), log::SetLoggerError> {
     simple_logger::SimpleLogger::new()
@@ -41,7 +36,7 @@ fn init_gettext(
 
 fn main() -> Result<()> {
     init_logger()?;
-    debug!("mullvadwaita starting...");
+    log::debug!("mullvadwaita starting...");
     init_gettext()?;
 
     let app = RelmApp::new("draft.mullvadwaita");

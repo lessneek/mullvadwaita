@@ -1,4 +1,5 @@
 use super::app::AppInput;
+use crate::tr;
 use adw::prelude::*;
 use mullvad_types::settings::Settings;
 use relm4::{

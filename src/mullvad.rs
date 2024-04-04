@@ -1,5 +1,3 @@
-use crate::prelude::*;
-
 use std::time::Duration;
 
 use anyhow::{Ok, Result};
@@ -38,10 +36,10 @@ pub fn events_receiver() -> Receiver<Event> {
 
     tokio::spawn(async move {
         while !sender.is_closed() && (sender.send(Event::ConnectingToDaemon).await).is_ok() {
-            trace!("Starting listening for RPC.");
+            log::trace!("Starting listening for RPC.");
             match events_listen(&sender).await {
-                Result::Ok(_) => trace!("RPC listening ended Ok."),
-                Err(err) => trace!("RPC listening error: {}", err),
+                Result::Ok(_) => log::trace!("RPC listening ended Ok."),
+                Err(err) => log::trace!("RPC listening error: {}", err),
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -76,33 +74,33 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
     while let Some(event) = client.events_listen().await?.next().await {
         match event? {
             DaemonEvent::TunnelState(new_state) => {
-                trace!("{new_state:#?}");
+                log::trace!("{new_state:#?}");
                 sender.send(Event::TunnelState(new_state)).await?;
             }
             DaemonEvent::Settings(settings) => {
-                trace!("{settings:#?}");
+                log::trace!("{settings:#?}");
                 sender.send(Event::Setting(settings)).await?;
             }
             DaemonEvent::RelayList(relay_list) => {
-                trace!("{relay_list:#?}");
+                log::trace!("{relay_list:#?}");
                 sender.send(Event::RelayList(relay_list)).await?;
             }
             DaemonEvent::AppVersionInfo(app_version_info) => {
-                trace!("{app_version_info:#?}");
+                log::trace!("{app_version_info:#?}");
                 sender.send(Event::AppVersionInfo(app_version_info)).await?;
             }
             DaemonEvent::Device(device_event) => {
-                trace!("{device_event:#?}");
+                log::trace!("{device_event:#?}");
                 sender.send(Event::Device(device_event)).await?;
             }
             DaemonEvent::RemoveDevice(remove_device_event) => {
-                trace!("{remove_device_event:#?}");
+                log::trace!("{remove_device_event:#?}");
                 sender
                     .send(Event::RemoveDevice(remove_device_event))
                     .await?;
             }
             DaemonEvent::NewAccessMethod(access_method) => {
-                trace!("{access_method:#?}");
+                log::trace!("{access_method:#?}");
                 sender.send(Event::NewAccessMethod(access_method)).await?;
             }
         }
@@ -123,7 +121,7 @@ impl DaemonConnector {
         let client = client.get_or_insert(
             MullvadProxyClient::new()
                 .await
-                .inspect_err(|e| debug!("{e:#?}"))?,
+                .inspect_err(|e| log::debug!("{e:#?}"))?,
         );
 
         Ok(client)

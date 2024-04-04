@@ -1,10 +1,10 @@
 use std::convert::identity;
 
-use crate::extensions::TunnelStateExt;
+use crate::extensions::{ToStr, TunnelStateExt};
 use crate::mullvad::{self, DaemonConnector, Event};
-use crate::prelude::*;
 use crate::ui::preferences::{PreferencesModel, PreferencesMsg};
 
+use crate::tr;
 use chrono::prelude::*;
 use futures::FutureExt;
 use smart_default::SmartDefault;
@@ -599,17 +599,17 @@ impl AsyncComponent for AppModel {
 async fn listen_to_mullvad_events(out: relm4::Sender<AppMsg>) {
     let mut events_rx = mullvad::events_receiver();
 
-    trace!("Listening for status updates...");
+    log::trace!("Listening for status updates...");
 
     while let Some(event) = events_rx.recv().await {
-        debug!("Daemon event: {:#?}", event);
+        log::debug!("Daemon event: {:#?}", event);
         if let Err(msg) = out.send(AppMsg::DaemonEvent(event)) {
-            debug!("Can't send an app message {msg:?} because all receivers were dropped");
+            log::debug!("Can't send an app message {msg:?} because all receivers were dropped");
             break;
         }
     }
 
-    trace!("Status updates stopped.");
+    log::trace!("Status updates stopped.");
 }
 
 relm4::new_action_group!(WindowActionGroup, "win");

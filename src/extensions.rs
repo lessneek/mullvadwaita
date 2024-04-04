@@ -1,7 +1,10 @@
-use mullvad_types::{location::GeoIpLocation, states::TunnelState};
+use crate::tr;
+use mullvad_types::{
+    location::GeoIpLocation,
+    states::TunnelState::{self, *},
+};
 use std::fmt::Write;
 use talpid_types::{net::TunnelEndpoint, tunnel::ActionAfterDisconnect};
-use TunnelState::*;
 
 pub trait TunnelStateExt {
     fn is_connecting_or_connected(&self) -> bool;
@@ -156,5 +159,15 @@ impl TunnelStateExt for TunnelState {
             }
             out
         })
+    }
+}
+
+pub(crate) trait ToStr {
+    fn to_str(&self) -> &str;
+}
+
+impl ToStr for Option<String> {
+    fn to_str(self: &Option<String>) -> &str {
+        self.as_ref().map(|ss| ss.as_str()).unwrap_or_default()
     }
 }
