@@ -15,7 +15,7 @@ use relm4::prelude::*;
 use adw::prelude::*;
 
 use mullvad_types::account::AccountData;
-use mullvad_types::device::AccountAndDevice;
+use mullvad_types::device::DeviceState;
 use mullvad_types::states::TunnelState;
 use talpid_types::tunnel::ActionAfterDisconnect;
 
@@ -44,7 +44,7 @@ pub struct AppModel {
     daemon_state: DaemonState,
 
     #[no_eq]
-    account_and_device: Option<AccountAndDevice>,
+    device_state: Option<DeviceState>,
 
     #[no_eq]
     account_data: Option<AccountData>,
@@ -154,11 +154,14 @@ impl AppModel {
             self.set_tunnel_out(tunnel_out);
         }
 
-        self.set_device_name(
-            self.get_account_and_device()
-                .as_ref()
-                .map(|acc| tr!("<b>Device name</b>: {}", acc.device.pretty_name())),
-        );
+        self.set_device_name(self.get_device_state().as_ref().and_then(|device_state| {
+            match device_state {
+                DeviceState::LoggedIn(devacc) => {
+                    Some(tr!("<b>Device name</b>: {}", devacc.device.pretty_name()))
+                }
+                _ => None,
+            }
+        }));
 
         self.set_time_left(self.get_account_data().as_ref().map(|data| {
             let now = Utc::now();
@@ -572,7 +575,7 @@ impl AsyncComponent for AppModel {
                     }
                     Event::ConnectingToDaemon => self.set_daemon_state(DaemonState::Connecting),
                     Event::Device(device_event) => {
-                        self.set_account_and_device(device_event.new_state.into_device());
+                        self.set_device_state(Some(device_event.new_state));
                     }
                     Event::RemoveDevice(_) => {}
                     Event::AccountData(account_data) => self.set_account_data(Some(account_data)),
