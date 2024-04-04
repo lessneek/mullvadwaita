@@ -571,9 +571,10 @@ impl AsyncComponent for AppModel {
                         });
                     }
                     Event::ConnectingToDaemon => self.set_daemon_state(DaemonState::Connecting),
-                    Event::DeviceState(device_state) => {
-                        self.set_account_and_device(device_state.into_device());
+                    Event::Device(device_event) => {
+                        self.set_account_and_device(device_event.new_state.into_device());
                     }
+                    Event::RemoveDevice(_) => {}
                     Event::AccountData(account_data) => self.set_account_data(Some(account_data)),
                     Event::Setting(settings) => {
                         if let Some(components) = self.get_components() {
@@ -582,6 +583,9 @@ impl AsyncComponent for AppModel {
                                 .emit(PreferencesMsg::UpdateSettings(settings));
                         }
                     }
+                    Event::AppVersionInfo(_) => {}
+                    Event::RelayList(_) => {}
+                    Event::NewAccessMethod(_) => {}
                 };
                 self.update_properties();
             }

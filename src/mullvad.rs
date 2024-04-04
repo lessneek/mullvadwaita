@@ -6,7 +6,13 @@ use anyhow::{Ok, Result};
 
 use mullvad_management_interface::{client::DaemonEvent, MullvadProxyClient};
 use mullvad_types::{
-    account::AccountData, device::DeviceState, settings::Settings, states::TunnelState,
+    access_method::AccessMethodSetting,
+    account::AccountData,
+    device::{DeviceEvent, DeviceEventCause, DeviceState, RemoveDeviceEvent},
+    relay_list::RelayList,
+    settings::Settings,
+    states::TunnelState,
+    version::AppVersionInfo,
 };
 use smart_default::SmartDefault;
 use tokio::sync::mpsc::{self, Receiver, Sender};
@@ -17,9 +23,13 @@ use futures::StreamExt;
 #[allow(clippy::large_enum_variant)]
 pub enum Event {
     TunnelState(TunnelState),
-    DeviceState(DeviceState),
-    AccountData(AccountData),
     Setting(Settings),
+    RelayList(RelayList),
+    AppVersionInfo(AppVersionInfo),
+    Device(DeviceEvent),
+    RemoveDevice(RemoveDeviceEvent),
+    AccountData(AccountData),
+    NewAccessMethod(AccessMethodSetting),
     ConnectingToDaemon,
 }
 
@@ -51,7 +61,12 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
     if let Some(account_token) = device.get_account().map(|acc| acc.account_token.clone()) {
         let account_data = client.get_account_data(account_token.clone()).await?;
         sender.send(Event::AccountData(account_data)).await?;
-        sender.send(Event::DeviceState(device)).await?;
+        sender
+            .send(Event::Device(DeviceEvent {
+                cause: DeviceEventCause::Updated,
+                new_state: device,
+            }))
+            .await?;
     }
 
     let settings = client.get_settings().await?;
@@ -60,28 +75,34 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
     while let Some(event) = client.events_listen().await?.next().await {
         match event? {
             DaemonEvent::TunnelState(new_state) => {
-                trace!("New tunnel state: {new_state:#?}");
+                trace!("{new_state:#?}");
                 sender.send(Event::TunnelState(new_state)).await?;
             }
             DaemonEvent::Settings(settings) => {
-                trace!("New settings: {settings:#?}");
+                trace!("{settings:#?}");
                 sender.send(Event::Setting(settings)).await?;
             }
             DaemonEvent::RelayList(relay_list) => {
-                trace!("New relay list: {relay_list:#?}");
+                trace!("{relay_list:#?}");
+                sender.send(Event::RelayList(relay_list)).await?;
             }
             DaemonEvent::AppVersionInfo(app_version_info) => {
-                trace!("New app version info: {app_version_info:#?}");
+                trace!("{app_version_info:#?}");
+                sender.send(Event::AppVersionInfo(app_version_info)).await?;
             }
-            DaemonEvent::Device(device) => {
-                trace!("Device event: {device:#?}");
-                sender.send(Event::DeviceState(device.new_state)).await?
+            DaemonEvent::Device(device_event) => {
+                trace!("{device_event:#?}");
+                sender.send(Event::Device(device_event)).await?;
             }
-            DaemonEvent::RemoveDevice(device) => {
-                trace!("Remove device event: {device:#?}");
+            DaemonEvent::RemoveDevice(remove_device_event) => {
+                trace!("{remove_device_event:#?}");
+                sender
+                    .send(Event::RemoveDevice(remove_device_event))
+                    .await?;
             }
             DaemonEvent::NewAccessMethod(access_method) => {
-                trace!("New access method: {access_method:#?}");
+                trace!("{access_method:#?}");
+                sender.send(Event::NewAccessMethod(access_method)).await?;
             }
         }
     }
@@ -93,6 +114,7 @@ pub struct DaemonConnector {
     client: Option<MullvadProxyClient>,
 }
 
+#[allow(dead_code)]
 impl DaemonConnector {
     async fn get_client(&mut self) -> Result<&mut MullvadProxyClient> {
         let client = &mut self.client;
@@ -118,12 +140,10 @@ impl DaemonConnector {
         Ok(self.get_client().await?.reconnect_tunnel().await?)
     }
 
-    #[allow(dead_code)]
     pub async fn get_account_data(&mut self, account: String) -> Result<AccountData> {
         Ok(self.get_client().await?.get_account_data(account).await?)
     }
 
-    #[allow(dead_code)]
     pub async fn get_settings(&mut self) -> Result<Settings> {
         Ok(self.get_client().await?.get_settings().await?)
     }
@@ -137,10 +157,22 @@ impl DaemonConnector {
     }
 
     pub async fn set_block_when_disconnected(&mut self, state: bool) -> Result<()> {
-        Ok(self.get_client().await?.set_block_when_disconnected(state).await?)
+        Ok(self
+            .get_client()
+            .await?
+            .set_block_when_disconnected(state)
+            .await?)
     }
 
     pub async fn set_enable_ipv6(&mut self, state: bool) -> Result<()> {
         Ok(self.get_client().await?.set_enable_ipv6(state).await?)
+    }
+
+    pub async fn get_tunnel_state(&mut self) -> Result<TunnelState> {
+        Ok(self.get_client().await?.get_tunnel_state().await?)
+    }
+
+    pub async fn get_device(&mut self) -> Result<DeviceState> {
+        Ok(self.get_client().await?.get_device().await?)
     }
 }
