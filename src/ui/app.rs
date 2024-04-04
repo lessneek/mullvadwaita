@@ -463,28 +463,31 @@ impl AsyncComponent for AppModel {
 
         let widgets = view_output!();
 
-        let app = relm4::main_adw_application();
-        app.set_accelerators_for_action::<PreferencesAction>(&["<primary>comma"]);
-
-        let mut group = RelmActionGroup::<WindowActionGroup>::new();
-        // PreferencesAction
+        // Actions
         {
-            let sender = sender.clone();
-            group.add_action(RelmAction::<PreferencesAction>::new_stateless(move |_| {
-                sender.input(AppInput::Preferences);
-            }));
-        }
-        // AboutAction
-        {
-            let sender = sender.clone();
-            group.add_action(RelmAction::<AboutAction>::new_stateless(move |_| {
-                sender.input(AppInput::About);
-            }));
-        }
+            let app = relm4::main_adw_application();
+            app.set_accelerators_for_action::<PreferencesAction>(&["<primary>comma"]);
 
-        widgets
-            .main_window
-            .insert_action_group("win", Some(&group.into_action_group()));
+            let mut group = RelmActionGroup::<WindowActionGroup>::new();
+            // PreferencesAction
+            {
+                let sender = sender.clone();
+                group.add_action(RelmAction::<PreferencesAction>::new_stateless(move |_| {
+                    sender.input(AppInput::Preferences);
+                }));
+            }
+            // AboutAction
+            {
+                let sender = sender.clone();
+                group.add_action(RelmAction::<AboutAction>::new_stateless(move |_| {
+                    sender.input(AppInput::About);
+                }));
+            }
+
+            widgets
+                .main_window
+                .insert_action_group("win", Some(&group.into_action_group()));
+        }
 
         AsyncComponentParts { model, widgets }
     }
