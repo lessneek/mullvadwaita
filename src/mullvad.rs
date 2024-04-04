@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::{Ok, Result};
+use anyhow::Result;
 
 use mullvad_management_interface::{client::DaemonEvent, MullvadProxyClient};
 use mullvad_types::{
@@ -38,8 +38,8 @@ pub fn events_receiver() -> Receiver<Event> {
         while !sender.is_closed() && (sender.send(Event::ConnectingToDaemon).await).is_ok() {
             log::trace!("Starting listening for RPC.");
             match events_listen(&sender).await {
-                Result::Ok(_) => log::trace!("RPC listening ended Ok."),
-                Err(err) => log::trace!("RPC listening error: {}", err),
+                Result::Ok(_) => log::info!("RPC listening ended Ok."),
+                Err(err) => log::debug!("RPC listening error: {}", err),
             }
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
@@ -54,19 +54,20 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
     let state = client.get_tunnel_state().await?;
     sender.send(Event::TunnelState(state)).await?;
 
-    let device = client.get_device().await?;
+    if let Ok(device) = client.get_device().await {
+        if let Some(account_token) = device.get_account().map(|acc| acc.account_token.clone()) {
+            if let Ok(account_data) = client.get_account_data(account_token.clone()).await {
+                sender.send(Event::AccountData(account_data)).await?;
+            }
+        }
 
-    if let Some(account_token) = device.get_account().map(|acc| acc.account_token.clone()) {
-        let account_data = client.get_account_data(account_token.clone()).await?;
-        sender.send(Event::AccountData(account_data)).await?;
+        sender
+            .send(Event::Device(DeviceEvent {
+                cause: DeviceEventCause::Updated,
+                new_state: device,
+            }))
+            .await?;
     }
-
-    sender
-        .send(Event::Device(DeviceEvent {
-            cause: DeviceEventCause::Updated,
-            new_state: device,
-        }))
-        .await?;
 
     let settings = client.get_settings().await?;
     sender.send(Event::Setting(settings)).await?;
