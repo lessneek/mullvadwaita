@@ -5,7 +5,7 @@ use anyhow::Result;
 use mullvad_management_interface::{client::DaemonEvent, MullvadProxyClient};
 use mullvad_types::{
     access_method::AccessMethodSetting,
-    account::AccountData,
+    account::{AccountData, AccountToken},
     device::{DeviceEvent, DeviceEventCause, DeviceState, RemoveDeviceEvent},
     relay_list::RelayList,
     settings::Settings,
@@ -51,15 +51,14 @@ pub fn events_receiver() -> Receiver<Event> {
 async fn events_listen(sender: &Sender<Event>) -> Result<()> {
     let mut client = MullvadProxyClient::new().await?;
 
+    let settings = client.get_settings().await?;
+    sender.send(Event::Setting(settings)).await?;
+
     let state = client.get_tunnel_state().await?;
     sender.send(Event::TunnelState(state)).await?;
 
     if let Ok(device) = client.get_device().await {
-        if let Some(account_token) = device.get_account().map(|acc| acc.account_token.clone()) {
-            if let Ok(account_data) = client.get_account_data(account_token.clone()).await {
-                sender.send(Event::AccountData(account_data)).await?;
-            }
-        }
+        let account_token = device.get_account().map(|acc| acc.account_token.clone());
 
         sender
             .send(Event::Device(DeviceEvent {
@@ -67,10 +66,13 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
                 new_state: device,
             }))
             .await?;
-    }
 
-    let settings = client.get_settings().await?;
-    sender.send(Event::Setting(settings)).await?;
+        if let Some(account_token) = account_token {
+            if let Ok(account_data) = client.get_account_data(account_token.clone()).await {
+                sender.send(Event::AccountData(account_data)).await?;
+            }
+        }
+    }
 
     while let Some(event) = client.events_listen().await?.next().await {
         match event? {
@@ -126,6 +128,10 @@ impl DaemonConnector {
         );
 
         Ok(client)
+    }
+
+    pub async fn login_account(&mut self, account: AccountToken) -> Result<()> {
+        Ok(self.get_client().await?.login_account(account).await?)
     }
 
     pub async fn secure_my_connection(&mut self) -> Result<bool> {

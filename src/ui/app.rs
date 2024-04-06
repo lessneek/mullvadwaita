@@ -7,6 +7,7 @@ use crate::ui::preferences::{PreferencesModel, PreferencesMsg};
 use crate::tr;
 use chrono::prelude::*;
 use futures::FutureExt;
+use mullvad_management_interface::Error;
 use smart_default::SmartDefault;
 
 use relm4::actions::{AccelsPlus, RelmAction, RelmActionGroup};
@@ -14,8 +15,8 @@ use relm4::prelude::*;
 
 use adw::prelude::*;
 
-use mullvad_types::account::AccountData;
-use mullvad_types::device::DeviceState;
+use mullvad_types::account::{AccountData, AccountToken};
+use mullvad_types::device::{AccountAndDevice, DeviceState};
 use mullvad_types::states::TunnelState;
 use talpid_types::tunnel::ActionAfterDisconnect;
 
@@ -30,6 +31,7 @@ pub enum AppInput {
     Preferences,
     About,
     Set(Pref),
+    Login(AccountToken),
 }
 
 #[derive(Debug)]
@@ -41,20 +43,18 @@ pub enum AppMsg {
 #[derive(SmartDefault)]
 pub struct AppModel {
     #[no_eq]
-    daemon_state: DaemonState,
+    state: AppState,
 
     #[no_eq]
-    device_state: Option<DeviceState>,
+    tunnel_state: Option<TunnelState>,
 
     #[no_eq]
     account_data: Option<AccountData>,
 
-    #[do_not_track]
-    daemon_connector: DaemonConnector,
+    banner_label: Option<String>,
 
     device_name: Option<String>,
     time_left: Option<String>,
-    banner_label: Option<String>,
     tunnel_state_label: Option<String>,
     country: Option<String>,
     city: Option<String>,
@@ -65,6 +65,9 @@ pub struct AppModel {
 
     #[no_eq]
     components: Option<AppComponents>,
+
+    #[do_not_track]
+    daemon_connector: DaemonConnector,
 }
 
 pub struct AppComponents {
@@ -73,60 +76,56 @@ pub struct AppComponents {
 
 #[derive(Debug, SmartDefault)]
 #[allow(clippy::large_enum_variant)]
-enum DaemonState {
-    Connected {
-        tunnel_state: TunnelState,
-    },
+enum AppState {
+    LoggedIn(AccountAndDevice),
+    LoggedOut,
+    Revoked,
     #[default]
-    Connecting,
+    ConnectingToDaemon,
 }
 
 impl AppModel {
-    fn get_tunnel_state(&self) -> Option<&TunnelState> {
-        match &self.daemon_state {
-            DaemonState::Connected { tunnel_state } => Some(tunnel_state),
-            _ => None,
-        }
-    }
-
     fn can_secure_connection(&self) -> bool {
-        match &self.daemon_state {
-            DaemonState::Connected { tunnel_state } => matches!(
-                tunnel_state,
+        matches!(
+            self.get_tunnel_state(),
+            Some(
                 TunnelState::Disconnected { .. }
                     | TunnelState::Disconnecting(
                         ActionAfterDisconnect::Nothing | ActionAfterDisconnect::Block
                     )
-            ),
-            _ => false,
-        }
+            )
+        )
     }
 
     fn is_connected(&self) -> bool {
         self.get_tunnel_state()
+            .as_ref()
             .map_or(false, |ts| ts.is_connected())
     }
 
     fn is_connecting_or_reconnecting(&self) -> bool {
         self.get_tunnel_state()
+            .as_ref()
             .map(|ts| ts.is_connecting_or_reconnecting() || ts.is_in_error_state())
             .unwrap_or(false)
     }
 
     fn can_disconnect(&self) -> bool {
         self.get_tunnel_state()
+            .as_ref()
             .map(|ts| ts.is_connected())
             .unwrap_or(false)
     }
 
     fn can_reconnect(&self) -> bool {
         self.get_tunnel_state()
+            .as_ref()
             .map(|ts| ts.is_connecting_or_connected())
             .unwrap_or(false)
     }
 
-    fn state_changed(&self) -> bool {
-        self.changed(AppModel::daemon_state())
+    fn tunnel_state_changed(&self) -> bool {
+        self.changed(AppModel::tunnel_state())
     }
 
     fn update_properties(&mut self) {
@@ -154,14 +153,12 @@ impl AppModel {
             self.set_tunnel_out(tunnel_out);
         }
 
-        self.set_device_name(self.get_device_state().as_ref().and_then(|device_state| {
-            match device_state {
-                DeviceState::LoggedIn(devacc) => {
-                    Some(tr!("<b>Device name</b>: {}", devacc.device.pretty_name()))
-                }
-                _ => None,
+        self.set_device_name(match self.get_state() {
+            AppState::LoggedIn(devacc) => {
+                Some(tr!("<b>Device name</b>: {}", devacc.device.pretty_name()))
             }
-        }));
+            _ => None,
+        });
 
         self.set_time_left(self.get_account_data().as_ref().map(|data| {
             let now = Utc::now();
@@ -212,9 +209,9 @@ impl AsyncComponent for AppModel {
                 adw::Clamp {
                     set_maximum_size: 600,
 
-                    #[transition(SlideUpDown)]
-                    match &model.daemon_state {
-                        DaemonState::Connected { tunnel_state } => {
+                    #[transition(SlideLeftRight)]
+                    match (model.get_state(), model.get_tunnel_state()) {
+                        (AppState::LoggedIn(_), Some(tunnel_state)) => {
                             gtk::Box {
                                 set_orientation: gtk::Orientation::Vertical,
                                 set_valign: gtk::Align::Fill,
@@ -301,7 +298,7 @@ impl AsyncComponent for AppModel {
                                     set_label: model.get_tunnel_state_label().to_str(),
                                     set_margin_bottom: 10,
 
-                                    #[track = "model.state_changed()"]
+                                    #[track = "model.tunnel_state_changed()"]
                                     set_css_classes: if model.is_connected() {
                                         &["title-4", "connected_state_label"]
                                     } else {
@@ -384,7 +381,7 @@ impl AsyncComponent for AppModel {
                                         set_label: &tr!("Secure my connection"),
                                         set_css_classes: &["opaque", "secure_my_connection_btn"],
 
-                                        #[track = "model.state_changed()"]
+                                        #[track = "model.tunnel_state_changed()"]
                                         set_visible: model.can_secure_connection()
                                     },
 
@@ -394,7 +391,7 @@ impl AsyncComponent for AppModel {
                                         set_label: &tr!("Cancel"),
                                         set_css_classes: &["opaque", "disconnect_btn"],
 
-                                        #[track = "model.state_changed()"]
+                                        #[track = "model.tunnel_state_changed()"]
                                         set_visible: model.is_connecting_or_reconnecting()
                                     },
 
@@ -404,7 +401,7 @@ impl AsyncComponent for AppModel {
                                         set_label: &tr!("Disconnect"),
                                         set_css_classes: &["opaque", "disconnect_btn"],
 
-                                        #[track = "model.state_changed()"]
+                                        #[track = "model.tunnel_state_changed()"]
                                         set_visible: model.can_disconnect()
                                     },
 
@@ -413,13 +410,42 @@ impl AsyncComponent for AppModel {
                                         set_css_classes: &["opaque", "reconnect_btn"],
                                         set_icon_name: "arrow-circular-top-right-symbolic",
 
-                                        #[track = "model.state_changed()"]
+                                        #[track = "model.tunnel_state_changed()"]
                                         set_visible: model.can_reconnect(),
                                     },
                                 }
                             }
-                        },
-                        DaemonState::Connecting => {
+                        }
+                        (AppState::LoggedOut | AppState::Revoked, ..) => {
+                            gtk::Box {
+                                set_orientation: gtk::Orientation::Vertical,
+                                set_margin_all: 20,
+                                set_valign: gtk::Align::Center,
+
+                                gtk::Label {
+                                    set_label: &tr!("Login"),
+                                    set_margin_bottom: 10,
+                                    add_css_class: "title-1",
+                                    set_halign: gtk::Align::Start,
+                                },
+
+                                gtk::ListBox {
+                                    add_css_class: "boxed-list",
+                                    set_selection_mode: gtk::SelectionMode::None,
+                                    set_margin_bottom: 20,
+
+                                    adw::EntryRow {
+                                        set_title: &tr!("Enter your account number"),
+                                        set_show_apply_button: true,
+                                        set_input_purpose: gtk::InputPurpose::Digits,
+                                        connect_apply[sender] => move |this| {
+                                            sender.input(AppInput::Login(this.text().into()));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        (AppState::ConnectingToDaemon, ..) | (_, None) => {
                             gtk::Label {
                                 set_label: &tr!("Connecting to Mullvad system service..."),
                                 set_margin_all: 5,
@@ -506,6 +532,20 @@ impl AsyncComponent for AppModel {
         let daemon_connector = &mut self.daemon_connector;
 
         match message {
+            AppInput::Login(account_token) => {
+                let error_text = match daemon_connector.login_account(account_token).await {
+                    Ok(_) => None,
+                    Err(err) => {
+                        let err = match err.downcast_ref() {
+                            Some(Error::InvalidAccount) => tr!("Login failed. Invalid account number."),
+                            // TODO: process other errors.
+                            _ => tr!("Login failed"),
+                        };
+                        Some(err)
+                    }
+                };
+                self.set_banner_label(error_text);
+            }
             AppInput::SecureMyConnection => {
                 let _ = daemon_connector.secure_my_connection().await;
             }
@@ -568,15 +608,17 @@ impl AsyncComponent for AppModel {
         match message {
             AppMsg::DaemonEvent(event) => {
                 match event {
-                    Event::TunnelState(state) => {
-                        self.set_daemon_state(DaemonState::Connected {
-                            tunnel_state: state,
-                        });
+                    Event::TunnelState(new_tunnel_state) => {
+                        self.set_tunnel_state(Some(new_tunnel_state));
                     }
-                    Event::ConnectingToDaemon => self.set_daemon_state(DaemonState::Connecting),
-                    Event::Device(device_event) => {
-                        self.set_device_state(Some(device_event.new_state));
-                    }
+                    Event::ConnectingToDaemon => self.set_state(AppState::ConnectingToDaemon),
+                    Event::Device(device_event) => match device_event.new_state {
+                        DeviceState::LoggedIn(account_and_device) => {
+                            self.set_state(AppState::LoggedIn(account_and_device));
+                        }
+                        DeviceState::LoggedOut => self.set_state(AppState::LoggedOut),
+                        DeviceState::Revoked => self.set_state(AppState::Revoked),
+                    },
                     Event::RemoveDevice(_) => {}
                     Event::AccountData(account_data) => self.set_account_data(Some(account_data)),
                     Event::Setting(settings) => {
