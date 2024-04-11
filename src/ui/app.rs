@@ -1,8 +1,10 @@
 use std::convert::identity;
 
+use super::account::{AccountModel, AccountMsg};
+use super::preferences::{Pref, PreferencesModel, PreferencesMsg};
+
 use crate::extensions::{ToStr, TunnelStateExt};
 use crate::mullvad::{self, DaemonConnector, Event};
-use crate::ui::preferences::{PreferencesModel, PreferencesMsg};
 
 use crate::tr;
 use chrono::prelude::*;
@@ -20,18 +22,18 @@ use mullvad_types::device::{AccountAndDevice, DeviceState};
 use mullvad_types::states::TunnelState;
 use talpid_types::tunnel::ActionAfterDisconnect;
 
-use super::preferences::Pref;
-
 #[derive(Debug)]
 pub enum AppInput {
     SecureMyConnection,
     CancelConnection,
     Disconnect,
     Reconnect,
+    Account,
     Preferences,
     About,
     Set(Pref),
     Login(AccountToken),
+    Logout
 }
 
 #[derive(Debug)]
@@ -72,6 +74,7 @@ pub struct AppModel {
 }
 
 pub struct AppComponents {
+    account: AsyncController<AccountModel>,
     preferences: AsyncController<PreferencesModel>,
 }
 
@@ -491,6 +494,7 @@ impl AsyncComponent for AppModel {
     menu! {
         primary_menu: {
             section! {
+                &tr!("Account") => AccountAction,
                 &tr!("Preferences") => PreferencesAction,
                 &tr!("About") => AboutAction,
             },
@@ -511,6 +515,10 @@ impl AsyncComponent for AppModel {
 
         let model = AppModel {
             components: Some(AppComponents {
+                account: AccountModel::builder()
+                    .transient_for(&root)
+                    .launch(())
+                    .forward(sender.input_sender(), identity),
                 preferences: PreferencesModel::builder()
                     .transient_for(&root)
                     .launch(())
@@ -527,14 +535,24 @@ impl AsyncComponent for AppModel {
             app.set_accelerators_for_action::<PreferencesAction>(&["<primary>comma"]);
 
             let mut group = RelmActionGroup::<WindowActionGroup>::new();
-            // PreferencesAction
+
+            // Account
+            {
+                let sender = sender.clone();
+                group.add_action(RelmAction::<AccountAction>::new_stateless(move |_| {
+                    sender.input(AppInput::Account);
+                }));
+            }
+
+            // Preferences
             {
                 let sender = sender.clone();
                 group.add_action(RelmAction::<PreferencesAction>::new_stateless(move |_| {
                     sender.input(AppInput::Preferences);
                 }));
             }
-            // AboutAction
+
+            // About
             {
                 let sender = sender.clone();
                 group.add_action(RelmAction::<AboutAction>::new_stateless(move |_| {
@@ -577,6 +595,9 @@ impl AsyncComponent for AppModel {
                 };
                 self.set_banner_label(error_text);
             }
+            AppInput::Logout => {
+                let _ = daemon_connector.logout_account().await;
+            }
             AppInput::SecureMyConnection => {
                 let _ = daemon_connector.secure_my_connection().await;
             }
@@ -585,6 +606,11 @@ impl AsyncComponent for AppModel {
             }
             AppInput::CancelConnection | AppInput::Disconnect => {
                 let _ = daemon_connector.disconnect().await;
+            }
+            AppInput::Account => {
+                if let Some(components) = self.get_components() {
+                    components.account.emit(AccountMsg::Show);
+                }
             }
             AppInput::Preferences => {
                 if let Some(components) = self.get_components() {
@@ -645,7 +671,13 @@ impl AsyncComponent for AppModel {
                     Event::ConnectingToDaemon => self.set_state(AppState::ConnectingToDaemon),
                     Event::Device(device_event) => match device_event.new_state {
                         DeviceState::LoggedIn(account_and_device) => {
-                            self.set_state(AppState::LoggedIn(account_and_device));
+                            self.set_state(AppState::LoggedIn(account_and_device.clone()));
+                            
+                            if let Some(components) = self.get_components() {
+                                components
+                                    .account
+                                    .emit(AccountMsg::UpdateAccountAndDevice(account_and_device));
+                            }
                         }
                         DeviceState::LoggedOut => {
                             self.set_state(AppState::LoggedOut);
@@ -656,7 +688,15 @@ impl AsyncComponent for AppModel {
                         DeviceState::Revoked => self.set_state(AppState::Revoked),
                     },
                     Event::RemoveDevice(_) => {}
-                    Event::AccountData(account_data) => self.set_account_data(Some(account_data)),
+                    Event::AccountData(account_data) => {
+                        self.set_account_data(Some(account_data.clone()));
+
+                        if let Some(components) = self.get_components() {
+                            components
+                                .account
+                                .emit(AccountMsg::UpdateAccountData(account_data));
+                        }
+                    },
                     Event::Setting(settings) => {
                         if let Some(components) = self.get_components() {
                             components
@@ -691,5 +731,6 @@ async fn listen_to_mullvad_events(out: relm4::Sender<AppMsg>) {
 }
 
 relm4::new_action_group!(WindowActionGroup, "win");
+relm4::new_stateless_action!(AccountAction, WindowActionGroup, "account");
 relm4::new_stateless_action!(PreferencesAction, WindowActionGroup, "preferences");
 relm4::new_stateless_action!(AboutAction, WindowActionGroup, "about");

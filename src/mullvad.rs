@@ -134,6 +134,10 @@ impl DaemonConnector {
         Ok(self.get_client().await?.login_account(account).await?)
     }
 
+    pub async fn logout_account(&mut self) -> Result<()> {
+        Ok(self.get_client().await?.logout_account().await?)
+    }
+
     pub async fn secure_my_connection(&mut self) -> Result<bool> {
         Ok(self.get_client().await?.connect_tunnel().await?)
     }

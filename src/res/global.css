@@ -32,3 +32,8 @@
 .connection_state_icon.disabled {
     color: @warning_bg_color;
 }
+
+.logout_btn {
+    color: @destructive_fg_color;
+    background-color: @destructive_bg_color;
+}
