@@ -181,4 +181,8 @@ impl DaemonConnector {
     pub async fn get_device(&mut self) -> Result<DeviceState> {
         Ok(self.get_client().await?.get_device().await?)
     }
+
+    pub async fn get_account_history(&mut self) -> Result<Option<AccountToken>> {
+        Ok(self.get_client().await?.get_account_history().await?)
+    }
 }

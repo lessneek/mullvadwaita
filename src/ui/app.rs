@@ -48,8 +48,9 @@ pub struct AppModel {
     #[no_eq]
     tunnel_state: Option<TunnelState>,
 
-    #[no_eq]
     account_data: Option<AccountData>,
+
+    account_history: Option<AccountToken>,
 
     banner_label: Option<String>,
 
@@ -416,6 +417,7 @@ impl AsyncComponent for AppModel {
                                 }
                             }
                         }
+                        // Login page.
                         (AppState::LoggedOut | AppState::Revoked, ..) => {
                             gtk::Box {
                                 set_orientation: gtk::Orientation::Vertical,
@@ -424,7 +426,7 @@ impl AsyncComponent for AppModel {
 
                                 gtk::Label {
                                     set_label: &tr!("Login"),
-                                    set_margin_bottom: 10,
+                                    set_margin_bottom: 20,
                                     add_css_class: "title-1",
                                     set_halign: gtk::Align::Start,
                                 },
@@ -434,14 +436,41 @@ impl AsyncComponent for AppModel {
                                     set_selection_mode: gtk::SelectionMode::None,
                                     set_margin_bottom: 20,
 
-                                    adw::EntryRow {
+                                    append: account_number = &adw::EntryRow {
                                         set_title: &tr!("Enter your account number"),
-                                        set_show_apply_button: true,
-                                        set_input_purpose: gtk::InputPurpose::Digits,
-                                        connect_apply[sender] => move |this| {
-                                            sender.input(AppInput::Login(this.text().into()));
+
+                                        #[track = "model.changed(AppModel::state())"]
+                                        set_text: "",
+
+                                        connect_entry_activated[login_button] => move |_| {
+                                            login_button.emit_clicked();
+                                        },
+
+                                        add_suffix: login_button = &gtk::Button {
+                                            set_icon_name: "arrow2-right-symbolic",
+                                            set_valign: gtk::Align::Center,
+                                            set_css_classes: &["flat"],
+                                            set_receives_default: true,
+                                            connect_clicked[sender, account_number] => move |_| {
+                                                sender.input(AppInput::Login(account_number.text().into()));
+                                            }
+                                        },
+                                    },
+
+                                    adw::ActionRow {
+                                        #[track = "model.changed(AppModel::account_history())"]
+                                        set_title: model.get_account_history().to_str(),
+
+                                        #[track = "model.changed(AppModel::account_history())"]
+                                        set_visible: model.get_account_history().is_some(),
+
+                                        set_activatable: true,
+
+                                        connect_activated[account_number, login_button] => move |this| {
+                                            account_number.set_text(this.title().as_ref());
+                                            login_button.emit_clicked();
                                         }
-                                    }
+                                    },
                                 }
                             }
                         }
@@ -537,7 +566,9 @@ impl AsyncComponent for AppModel {
                     Ok(_) => None,
                     Err(err) => {
                         let err = match err.downcast_ref() {
-                            Some(Error::InvalidAccount) => tr!("Login failed. Invalid account number."),
+                            Some(Error::InvalidAccount) => {
+                                tr!("Login failed. Invalid account number.")
+                            }
                             // TODO: process other errors.
                             _ => tr!("Login failed"),
                         };
@@ -616,7 +647,12 @@ impl AsyncComponent for AppModel {
                         DeviceState::LoggedIn(account_and_device) => {
                             self.set_state(AppState::LoggedIn(account_and_device));
                         }
-                        DeviceState::LoggedOut => self.set_state(AppState::LoggedOut),
+                        DeviceState::LoggedOut => {
+                            self.set_state(AppState::LoggedOut);
+                            if let Ok(token) = self.daemon_connector.get_account_history().await {
+                                self.set_account_history(token);
+                            }
+                        }
                         DeviceState::Revoked => self.set_state(AppState::Revoked),
                     },
                     Event::RemoveDevice(_) => {}
