@@ -12,6 +12,16 @@ use crate::tr;
 use super::app::AppInput;
 use super::widgets::InfoButton;
 
+// TODO: get the nets from mullvad sources.
+static ALLOWED_LAN_NETS: [&str; 6] = [
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "169.254.0.0/16",
+    "fe80::/10",
+    "fc00::/7",
+];
+
 #[tracker::track]
 #[derive(Debug, SmartDefault)]
 pub struct PreferencesModel {
@@ -75,14 +85,27 @@ impl SimpleAsyncComponent for PreferencesModel {
                         add_prefix = &gtk::Image {
                             set_icon_name: Some("network-workgroup-symbolic"),
                         },
-                        set_subtitle: &tr!("This feature allows access to other devices on the local network, such as for sharing, printing, streaming, etc."),
 
                         #[track = "model.changed(PreferencesModel::local_network_sharing())"]
                         set_active: model.local_network_sharing,
 
                         connect_active_notify[sender] => move |this| {
                             let _ = sender.output(AppInput::Set(Pref::LocalNetworkSharing(this.is_active())));
-                        }
+                        },
+
+                        #[template]
+                        add_suffix = &InfoButton {
+                            #[template_child]
+                            info_label {
+                                set_label: {
+                                    &format!("{}\n\n{}{}",
+                                        &tr!("This feature allows access to other devices on the local network, such as for sharing, printing, streaming, etc."),
+                                        &tr!("It does this by allowing network communication outside the tunnel to local multicast and broadcast ranges as well as to and from these private IP ranges:"),
+                                        ALLOWED_LAN_NETS.iter().fold(String::new(), |acc, &s| format!("{acc}\n • {s}"))
+                                    )
+                                },
+                            }
+                        },
                     },
 
                     add = &adw::SwitchRow {
