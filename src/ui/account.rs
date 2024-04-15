@@ -1,5 +1,3 @@
-use super::app::AppInput;
-use crate::tr;
 use adw::prelude::*;
 use chrono::Local;
 use mullvad_types::{account::AccountData, device::AccountAndDevice};
@@ -9,6 +7,11 @@ use relm4::{
 };
 
 use smart_default::SmartDefault;
+
+use crate::tr;
+
+use super::app::AppInput;
+use super::widgets::InfoButton;
 
 #[tracker::track]
 #[derive(Debug, SmartDefault)]
@@ -54,15 +57,17 @@ impl SimpleAsyncComponent for AccountModel {
                         set_css_classes: &["property"],
                         set_subtitle_selectable: true,
 
-                        add_suffix = &gtk::Button {
-                            set_icon_name: "info-outline-symbolic",
-                            set_valign: gtk::Align::Center,
-                            set_css_classes: &["flat"],
-                            connect_clicked[root] => move |_| {
-                                gtk::AlertDialog::builder()
-                                    .message(tr!("This is the name assigned to the device. Each device logged in on a Mullvad account gets a unique name that helps you identify it when you manage your devices in the app or on the website.\n\nYou can have up to 5 devices logged in on one Mullvad account.\n\nIf you log out, the device and the device name is removed. When you log back in again, the device will get a new name."))
-                                    .build()
-                                    .show(Some(&root));
+                        #[template]
+                        add_suffix = &InfoButton {
+                            #[template_child]
+                            info_label {
+                                set_label: {
+                                    &format!("{}\n\n{}\n\n{}",
+                                        &tr!("This is the name assigned to the device. Each device logged in on a Mullvad account gets a unique name that helps you identify it when you manage your devices in the app or on the website."),
+                                        &tr!("You can have up to 5 devices logged in on one Mullvad account."),
+                                        &tr!("If you log out, the device and the device name is removed. When you log back in again, the device will get a new name.")
+                                    )
+                                },
                             }
                         },
                     },
