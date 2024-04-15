@@ -102,18 +102,33 @@ impl SimpleAsyncComponent for PreferencesModel {
                         add_prefix = &gtk::Image {
                             set_icon_name: Some("globe-alt2-symbolic"),
                         },
-                        add_suffix = &gtk::Button {
+                        add_suffix = &gtk::MenuButton {
                             set_icon_name: "info-outline-symbolic",
                             set_valign: gtk::Align::Center,
                             set_css_classes: &["flat"],
-                            connect_clicked[root] => move |_| {
-                                gtk::AlertDialog::builder()
-                                    .message(tr!("IPv4 is always enabled and the majority of websites and applications use this protocol. We do not recommend enabling IPv6 unless you know you need it."))
-                                    .build()
-                                    .show(Some(&root));
+
+                            #[wrap(Some)]
+                            set_popover: popover = &gtk::Popover {
+                                set_position: gtk::PositionType::Bottom,
+                                set_width_request: 300,
+
+                                gtk::ScrolledWindow {
+                                    set_propagate_natural_height: true,
+                                    set_propagate_natural_width: true,
+                                    gtk::Label {
+                                        set_text: {
+                                            &format!("{}\n\n{}",
+                                                &tr!("IPv4 is always enabled and the majority of websites and applications use this protocol. We do not recommend enabling IPv6 unless you know you need it."),
+                                                &tr!("When this feature is enabled, IPv6 can be used alongside IPv4 in the VPN tunnel to communicate with internet services.")
+                                            )
+                                        },
+                                        set_wrap: true,
+                                        set_max_width_chars: 42,
+                                        set_width_request: 300,
+                                    }
+                                }
                             }
                         },
-                        set_subtitle: &tr!("When this feature is enabled, IPv6 can be used alongside IPv4 in the VPN tunnel to communicate with internet services."),
 
                         #[track = "model.changed(PreferencesModel::enable_ipv6())"]
                         set_active: model.enable_ipv6,
