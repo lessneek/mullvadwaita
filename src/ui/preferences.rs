@@ -90,20 +90,39 @@ impl SimpleAsyncComponent for PreferencesModel {
                         add_prefix = &gtk::Image {
                             set_icon_name: Some("security-high-symbolic"),
                         },
-                        set_subtitle: &tr!("The difference between the Kill Switch and Lockdown Mode is that the Kill Switch will prevent any leaks from happening during automatic tunnel reconnects, software crashes and similar accidents."),
 
                         #[track = "model.changed(PreferencesModel::lockdown_mode())"]
                         set_active: model.lockdown_mode,
 
                         connect_active_notify[sender] => move |this| {
                             let _ = sender.output(AppInput::Set(Pref::LockdownMode(this.is_active())));
-                        }
+                        },
+
+                        #[template]
+                        add_suffix = &InfoButton {
+                            #[template_child]
+                            info_label {
+                                set_label: {
+                                    &format!("{}\n\n{}",
+                                        &tr!("The difference between the Kill Switch and Lockdown Mode is that the Kill Switch will prevent any leaks from happening during automatic tunnel reconnects, software crashes and similar accidents."),
+                                        &tr!("With Lockdown Mode enabled, you must be connected to a Mullvad VPN server to be able to reach the internet. Manually disconnecting or quitting the app will block your connection.")
+                                    )
+                                },
+                            }
+                        },
                     },
 
                     add = &adw::SwitchRow {
                         set_title: &tr!("Enable IPv6"),
                         add_prefix = &gtk::Image {
                             set_icon_name: Some("globe-alt2-symbolic"),
+                        },
+
+                        #[track = "model.changed(PreferencesModel::enable_ipv6())"]
+                        set_active: model.enable_ipv6,
+
+                        connect_active_notify[sender] => move |this| {
+                            let _ = sender.output(AppInput::Set(Pref::EnableIPv6(this.is_active())));
                         },
 
                         #[template]
@@ -118,13 +137,6 @@ impl SimpleAsyncComponent for PreferencesModel {
                                 },
                             }
                         },
-
-                        #[track = "model.changed(PreferencesModel::enable_ipv6())"]
-                        set_active: model.enable_ipv6,
-
-                        connect_active_notify[sender] => move |this| {
-                            let _ = sender.output(AppInput::Set(Pref::EnableIPv6(this.is_active())));
-                        }
                     }
                 }
             }
