@@ -34,6 +34,7 @@ pub enum AppInput {
     Set(Pref),
     Login(AccountToken),
     Logout,
+    CreateAccount,
 }
 
 #[derive(Debug)]
@@ -500,7 +501,25 @@ impl AsyncComponent for AppModel {
                                             login_button.emit_clicked();
                                         }
                                     },
-                                }
+                                },
+
+                                gtk::Box {
+                                    set_orientation: gtk::Orientation::Vertical,
+
+                                    gtk::Label {
+                                        set_text: &tr!("Don’t have an account number?"),
+                                        set_halign: gtk::Align::Start,
+                                        set_css_classes: &["caption-heading"],
+                                        set_margin_bottom: 10,
+                                    },
+
+                                    gtk::Button {
+                                        set_label: &tr!("Create account"),
+                                        connect_clicked[sender] => move |_| {
+                                            sender.input(AppInput::CreateAccount);
+                                        }
+                                    },
+                                },
                             }
                         }
                         (AppState::ConnectingToDaemon, ..) | (_, None) => {
@@ -623,6 +642,14 @@ impl AsyncComponent for AppModel {
             }
             AppInput::Logout => {
                 let _ = daemon_connector.logout_account().await;
+            }
+            AppInput::CreateAccount => {
+                let error_text = daemon_connector
+                    .create_new_account()
+                    .await
+                    .map_err(|_| tr!("Creating account failed")) // TODO: process other errors.
+                    .err();
+                self.set_banner_label(error_text);
             }
             AppInput::SecureMyConnection => {
                 let _ = daemon_connector.secure_my_connection().await;

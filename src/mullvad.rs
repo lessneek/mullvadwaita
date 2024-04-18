@@ -181,4 +181,8 @@ impl DaemonConnector {
     pub async fn get_account_history(&mut self) -> Result<Option<AccountToken>> {
         Ok(self.get_client().await?.get_account_history().await?)
     }
+
+    pub async fn create_new_account(&mut self) -> Result<AccountToken> {
+        Ok(self.get_client().await?.create_new_account().await?)
+    }
 }
