@@ -58,20 +58,12 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
     sender.send(Event::TunnelState(state)).await?;
 
     if let Ok(device) = client.get_device().await {
-        let account_token = device.get_account().map(|acc| acc.account_token.clone());
-
         sender
             .send(Event::Device(DeviceEvent {
                 cause: DeviceEventCause::Updated,
                 new_state: device,
             }))
             .await?;
-
-        if let Some(account_token) = account_token {
-            if let Ok(account_data) = client.get_account_data(account_token.clone()).await {
-                sender.send(Event::AccountData(account_data)).await?;
-            }
-        }
     }
 
     while let Some(event) = client.events_listen().await?.next().await {
@@ -111,7 +103,7 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, SmartDefault)]
+#[derive(Debug, SmartDefault, Clone)]
 pub struct DaemonConnector {
     client: Option<MullvadProxyClient>,
 }

@@ -33,12 +33,13 @@ pub enum AppInput {
     About,
     Set(Pref),
     Login(AccountToken),
-    Logout
+    Logout,
 }
 
 #[derive(Debug)]
 pub enum AppMsg {
     DaemonEvent(Event),
+    Ignore,
 }
 
 #[tracker::track]
@@ -49,13 +50,10 @@ pub struct AppModel {
 
     #[no_eq]
     tunnel_state: Option<TunnelState>,
-
     account_data: Option<AccountData>,
-
     account_history: Option<AccountToken>,
 
     banner_label: Option<String>,
-
     device_name: Option<String>,
     time_left: Option<String>,
     tunnel_state_label: Option<String>,
@@ -86,6 +84,15 @@ enum AppState {
     Revoked,
     #[default]
     ConnectingToDaemon,
+}
+
+impl AppState {
+    fn get_account_and_device(&self) -> Option<&AccountAndDevice> {
+        match self {
+            AppState::LoggedIn(ref account_and_device) => Some(account_and_device),
+            _ => None,
+        }
+    }
 }
 
 impl AppModel {
@@ -130,6 +137,25 @@ impl AppModel {
 
     fn tunnel_state_changed(&self) -> bool {
         self.changed(AppModel::tunnel_state())
+    }
+
+    fn get_account_token(&self) -> Option<String> {
+        self.state
+            .get_account_and_device()
+            .map(|acc| acc.account_token.clone())
+    }
+
+    fn fetch_account_data(&self, sender: AsyncComponentSender<Self>) {
+        if let Some(account_token) = self.get_account_token() {
+            let mut daemon_connector = self.daemon_connector.clone();
+
+            sender.oneshot_command(async move {
+                if let Ok(account_data) = daemon_connector.get_account_data(account_token).await {
+                    return AppMsg::DaemonEvent(Event::AccountData(account_data));
+                }
+                AppMsg::Ignore
+            });
+        }
     }
 
     fn update_properties(&mut self) {
@@ -659,25 +685,29 @@ impl AsyncComponent for AppModel {
     async fn update_cmd(
         &mut self,
         message: Self::CommandOutput,
-        _sender: AsyncComponentSender<Self>,
+        sender: AsyncComponentSender<Self>,
         _root: &Self::Root,
     ) {
         match message {
+            AppMsg::Ignore => {}
             AppMsg::DaemonEvent(event) => {
+                log::debug!("Daemon event: {:#?}", event);
                 match event {
                     Event::TunnelState(new_tunnel_state) => {
                         self.set_tunnel_state(Some(new_tunnel_state));
+                        self.fetch_account_data(sender.clone());
                     }
                     Event::ConnectingToDaemon => self.set_state(AppState::ConnectingToDaemon),
                     Event::Device(device_event) => match device_event.new_state {
                         DeviceState::LoggedIn(account_and_device) => {
                             self.set_state(AppState::LoggedIn(account_and_device.clone()));
-                            
+
                             if let Some(components) = self.get_components() {
                                 components
                                     .account
                                     .emit(AccountMsg::UpdateAccountAndDevice(account_and_device));
                             }
+                            self.fetch_account_data(sender.clone());
                         }
                         DeviceState::LoggedOut => {
                             self.set_state(AppState::LoggedOut);
@@ -696,7 +726,7 @@ impl AsyncComponent for AppModel {
                                 .account
                                 .emit(AccountMsg::UpdateAccountData(account_data));
                         }
-                    },
+                    }
                     Event::Setting(settings) => {
                         if let Some(components) = self.get_components() {
                             components
@@ -720,7 +750,6 @@ async fn listen_to_mullvad_events(out: relm4::Sender<AppMsg>) {
     log::trace!("Listening for status updates...");
 
     while let Some(event) = events_rx.recv().await {
-        log::debug!("Daemon event: {:#?}", event);
         if let Err(msg) = out.send(AppMsg::DaemonEvent(event)) {
             log::debug!("Can't send an app message {msg:?} because all receivers were dropped");
             break;
