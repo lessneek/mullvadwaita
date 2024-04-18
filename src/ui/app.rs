@@ -70,6 +70,9 @@ pub struct AppModel {
 
     #[do_not_track]
     daemon_connector: DaemonConnector,
+
+    #[no_eq]
+    account_action: Option<RelmAction<AccountAction>>,
 }
 
 pub struct AppComponents {
@@ -97,6 +100,10 @@ impl AppState {
 }
 
 impl AppModel {
+    fn is_logged_in(&self) -> bool {
+        matches!(self.get_state(), AppState::LoggedIn { .. })
+    }
+
     fn can_secure_connection(&self) -> bool {
         matches!(
             self.get_tunnel_state(),
@@ -563,35 +570,21 @@ impl AsyncComponent for AppModel {
                 .boxed()
         });
 
-        let model = AppModel {
-            components: Some(AppComponents {
-                account: AccountModel::builder()
-                    .transient_for(&root)
-                    .launch(())
-                    .forward(sender.input_sender(), identity),
-                preferences: PreferencesModel::builder()
-                    .transient_for(&root)
-                    .launch(())
-                    .forward(sender.input_sender(), identity),
-            }),
-            ..Default::default()
-        };
-
-        let widgets = view_output!();
-
         // Actions
+        let mut group = RelmActionGroup::<WindowActionGroup>::new();
+        let account_action: RelmAction<AccountAction>;
         {
             let app = relm4::main_adw_application();
             app.set_accelerators_for_action::<PreferencesAction>(&["<primary>comma"]);
 
-            let mut group = RelmActionGroup::<WindowActionGroup>::new();
-
             // Account
             {
                 let sender = sender.clone();
-                group.add_action(RelmAction::<AccountAction>::new_stateless(move |_| {
+                account_action = RelmAction::<AccountAction>::new_stateless(move |_| {
                     sender.input(AppInput::Account);
-                }));
+                });
+                account_action.set_enabled(false);
+                group.add_action(account_action.clone());
             }
 
             // Preferences
@@ -609,11 +602,26 @@ impl AsyncComponent for AppModel {
                     sender.input(AppInput::About);
                 }));
             }
-
-            widgets
-                .main_window
-                .insert_action_group("win", Some(&group.into_action_group()));
         }
+
+        let model = AppModel {
+            components: Some(AppComponents {
+                account: AccountModel::builder()
+                    .transient_for(&root)
+                    .launch(())
+                    .forward(sender.input_sender(), identity),
+                preferences: PreferencesModel::builder()
+                    .transient_for(&root)
+                    .launch(())
+                    .forward(sender.input_sender(), identity),
+            }),
+            account_action: Some(account_action),
+            ..Default::default()
+        };
+
+        let widgets = view_output!();
+
+        group.register_for_widget(&widgets.main_window);
 
         AsyncComponentParts { model, widgets }
     }
@@ -771,6 +779,12 @@ impl AsyncComponent for AppModel {
                     Event::NewAccessMethod(_) => {}
                 };
                 self.update_properties();
+
+                if self.changed(AppModel::state()) {
+                    if let Some(account_action) = &self.account_action {
+                        account_action.set_enabled(self.is_logged_in());
+                    }
+                }
             }
         }
     }
@@ -795,3 +809,9 @@ relm4::new_action_group!(WindowActionGroup, "win");
 relm4::new_stateless_action!(AccountAction, WindowActionGroup, "account");
 relm4::new_stateless_action!(PreferencesAction, WindowActionGroup, "preferences");
 relm4::new_stateless_action!(AboutAction, WindowActionGroup, "about");
+
+impl Clone for AccountAction {
+    fn clone(&self) -> Self {
+        Self {}
+    }
+}
