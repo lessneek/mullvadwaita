@@ -214,7 +214,6 @@ impl AsyncComponent for AppModel {
     view! {
         #[name = "main_window"]
         adw::Window {
-            set_title: Some("Mullvad VPN"),
             set_default_size: (300, 600),
 
             gtk::Box {
@@ -222,6 +221,12 @@ impl AsyncComponent for AppModel {
 
                 adw::HeaderBar {
                     add_css_class: "flat",
+
+                    #[wrap(Some)]
+                    set_title_widget = &adw::WindowTitle {
+                        set_title: "Mullvadwaita",
+                        set_subtitle: "for Mullvad VPN",
+                    },
 
                     pack_end = &gtk::MenuButton {
                         set_icon_name: "open-menu-symbolic",
