@@ -625,19 +625,19 @@ impl AsyncComponent for AppModel {
 
         match message {
             AppInput::Login(account_token) => {
-                let error_text = match daemon_connector.login_account(account_token).await {
-                    Ok(_) => None,
-                    Err(err) => {
-                        let err = match err.downcast_ref() {
+                let error_text = daemon_connector
+                    .login_account(account_token)
+                    .await
+                    .map_err(|err| {
+                        match err.downcast_ref() {
                             Some(Error::InvalidAccount) => {
                                 tr!("Login failed. Invalid account number.")
                             }
                             // TODO: process other errors.
                             _ => tr!("Login failed"),
-                        };
-                        Some(err)
-                    }
-                };
+                        }
+                    })
+                    .err();
                 self.set_banner_label(error_text);
             }
             AppInput::Logout => {
