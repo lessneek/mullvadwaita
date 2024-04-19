@@ -41,6 +41,8 @@ pub enum AppInput {
 #[derive(Debug)]
 pub enum AppMsg {
     DaemonEvent(Event),
+    LoginError(String),
+    CreateAccountError(String),
     Ignore,
 }
 
@@ -87,10 +89,17 @@ pub struct AppComponents {
 #[allow(clippy::large_enum_variant)]
 enum AppState {
     LoggedIn(AccountAndDevice),
-    LoggedOut,
-    Revoked,
+    Login(LoginState),
     #[default]
     ConnectingToDaemon,
+}
+
+#[derive(Debug, SmartDefault)]
+enum LoginState {
+    #[default]
+    Normal,
+    LoggingIn,
+    CreatingAccount,
 }
 
 impl AppState {
@@ -146,8 +155,17 @@ impl AppModel {
             .unwrap_or(false)
     }
 
+    fn state_changed(&self) -> bool {
+        self.changed(AppModel::state())
+    }
+
     fn tunnel_state_changed(&self) -> bool {
         self.changed(AppModel::tunnel_state())
+    }
+
+    fn get_tunnel_state_if_changed(&self) -> Option<Option<&TunnelState>> {
+        self.tunnel_state_changed()
+            .then_some(self.get_tunnel_state().as_ref())
     }
 
     fn get_account_token(&self) -> Option<String> {
@@ -170,7 +188,7 @@ impl AppModel {
     }
 
     fn update_properties(&mut self) {
-        if let Some(ts) = self.get_tunnel_state() {
+        if let Some(Some(ts)) = self.get_tunnel_state_if_changed() {
             let banner_label = match ts {
                 TunnelState::Error(error_state) => Some(format!("{}", error_state.cause())),
                 _ => None,
@@ -194,13 +212,6 @@ impl AppModel {
             self.set_tunnel_out(tunnel_out);
         }
 
-        self.set_device_name(match self.get_state() {
-            AppState::LoggedIn(devacc) => {
-                Some(tr!("<b>Device name</b>: {}", devacc.device.pretty_name()))
-            }
-            _ => None,
-        });
-
         self.set_time_left(self.get_account_data().as_ref().map(|data| {
             let now = Utc::now();
             if now >= data.expiry {
@@ -211,6 +222,20 @@ impl AppModel {
                     .to_string()
             }
         }));
+
+        if self.state_changed() {
+            if let Some(account_action) = &self.account_action {
+                account_action.set_enabled(self.is_logged_in());
+            }
+
+            self.set_device_name(match self.get_state() {
+                AppState::LoggedIn(acc_and_dev) => Some(tr!(
+                    "<b>Device name</b>: {}",
+                    acc_and_dev.device.pretty_name()
+                )),
+                _ => None,
+            });
+        }
     }
 }
 
@@ -257,6 +282,7 @@ impl AsyncComponent for AppModel {
 
                     #[transition(SlideLeftRight)]
                     match (model.get_state(), model.get_tunnel_state()) {
+                        // Main page.
                         (AppState::LoggedIn(_), Some(tunnel_state)) => {
                             gtk::Box {
                                 set_orientation: gtk::Orientation::Vertical,
@@ -463,11 +489,14 @@ impl AsyncComponent for AppModel {
                             }
                         }
                         // Login page.
-                        (AppState::LoggedOut | AppState::Revoked, ..) => {
+                        (AppState::Login(login_state), ..) => {
                             gtk::Box {
                                 set_orientation: gtk::Orientation::Vertical,
                                 set_margin_all: 20,
                                 set_valign: gtk::Align::Center,
+
+                                #[watch]
+                                set_sensitive: !matches!(login_state, LoginState::LoggingIn | LoginState::CreatingAccount),
 
                                 // When `lockdown mode` is enabled.
                                 adw::Bin {
@@ -521,21 +550,28 @@ impl AsyncComponent for AppModel {
                                     append: account_number = &adw::EntryRow {
                                         set_title: &tr!("Enter your account number"),
 
-                                        #[track = "model.changed(AppModel::state())"]
+                                        #[track = "model.is_logged_in()"]
                                         set_text: "",
 
                                         connect_entry_activated[login_button] => move |_| {
                                             login_button.emit_clicked();
                                         },
 
-                                        add_suffix: login_button = &gtk::Button {
-                                            set_icon_name: "arrow2-right-symbolic",
-                                            set_valign: gtk::Align::Center,
-                                            set_css_classes: &["opaque", "login_btn"],
-                                            set_receives_default: true,
-                                            connect_clicked[sender, account_number] => move |_| {
-                                                sender.input(AppInput::Login(account_number.text().into()));
+                                        add_suffix = match login_state {
+                                            LoginState::LoggingIn => {
+                                                gtk::Spinner {
+                                                    set_spinning: true,
+                                                }
                                             }
+                                            _ => login_button = &gtk::Button {
+                                                set_icon_name: "arrow2-right-symbolic",
+                                                set_valign: gtk::Align::Center,
+                                                set_css_classes: &["opaque", "login_btn"],
+                                                set_receives_default: true,
+                                                connect_clicked[sender, account_number] => move |_| {
+                                                    sender.input(AppInput::Login(account_number.text().into()));
+                                                }
+                                            },
                                         },
                                     },
 
@@ -578,7 +614,7 @@ impl AsyncComponent for AppModel {
                                         set_label: &tr!("Create account"),
                                         connect_clicked[sender] => move |_| {
                                             sender.input(AppInput::CreateAccount);
-                                        }
+                                        },
                                     },
                                 },
                             }
@@ -678,55 +714,72 @@ impl AsyncComponent for AppModel {
     async fn update(
         &mut self,
         message: Self::Input,
-        _sender: AsyncComponentSender<Self>,
+        sender: AsyncComponentSender<Self>,
         root: &Self::Root,
     ) {
         self.reset();
 
-        let daemon_connector = &mut self.daemon_connector;
-
         match message {
             AppInput::Login(account_token) => {
-                let error_text = daemon_connector
-                    .login_account(account_token)
-                    .await
-                    .map_err(|err| {
-                        match err.downcast_ref() {
-                            Some(Error::InvalidAccount) => {
-                                tr!("Login failed. Invalid account number.")
-                            }
-                            // TODO: process other errors.
-                            _ => tr!("Login failed"),
-                        }
-                    })
-                    .err();
-                self.set_banner_label(error_text);
+                self.set_banner_label(None);
+                self.set_state(AppState::Login(LoginState::LoggingIn));
+
+                let mut daemon_connector = self.daemon_connector.clone();
+                sender.oneshot_command(async move {
+                    let login_result =
+                        daemon_connector
+                            .login_account(account_token)
+                            .await
+                            .map_err(|err| {
+                                log::debug!("{:#?}", err);
+                                match err.downcast_ref() {
+                                    Some(Error::InvalidAccount) => {
+                                        tr!("Login failed. Invalid account number.")
+                                    }
+                                    // TODO: process other errors.
+                                    _ => tr!("Login failed"),
+                                }
+                            });
+                    match login_result {
+                        Ok(_) => AppMsg::Ignore,
+                        Err(error) => AppMsg::LoginError(error),
+                    }
+                });
             }
             AppInput::Logout => {
-                let _ = daemon_connector.logout_account().await;
+                let _ = self.daemon_connector.logout_account().await;
             }
             AppInput::CreateAccount => {
-                let error_text = daemon_connector
-                    .create_new_account()
-                    .await
-                    .map_err(|_| tr!("Creating account failed")) // TODO: process other errors.
-                    .err();
-                self.set_banner_label(error_text);
+                self.set_banner_label(None);
+                self.set_state(AppState::Login(LoginState::CreatingAccount));
+
+                let mut daemon_connector = self.daemon_connector.clone();
+                sender.oneshot_command(async move {
+                    let result = daemon_connector.create_new_account().await.map_err(|err| {
+                        log::debug!("{:#?}", err);
+                        // TODO: process other errors.
+                        tr!("Creating account failed")
+                    });
+                    match result {
+                        Ok(_) => AppMsg::Ignore,
+                        Err(error) => AppMsg::CreateAccountError(error),
+                    }
+                });
             }
             AppInput::ClearAccountHistory => {
-                let _ = daemon_connector.clear_account_history().await;
+                let _ = self.daemon_connector.clear_account_history().await;
                 if let Ok(token) = self.daemon_connector.get_account_history().await {
                     self.set_account_history(token);
                 }
             }
             AppInput::SecureMyConnection => {
-                let _ = daemon_connector.secure_my_connection().await;
+                let _ = self.daemon_connector.secure_my_connection().await;
             }
             AppInput::Reconnect => {
-                let _ = daemon_connector.reconnect().await;
+                let _ = self.daemon_connector.reconnect().await;
             }
             AppInput::CancelConnection | AppInput::Disconnect => {
-                let _ = daemon_connector.disconnect().await;
+                let _ = self.daemon_connector.disconnect().await;
             }
             AppInput::Account => {
                 if let Some(components) = self.get_components() {
@@ -804,13 +857,13 @@ impl AsyncComponent for AppModel {
                             }
                             self.fetch_account_data(sender.clone());
                         }
-                        DeviceState::LoggedOut => {
-                            self.set_state(AppState::LoggedOut);
+                        // TODO: process `revoked` state.
+                        DeviceState::LoggedOut | DeviceState::Revoked => {
+                            self.set_state(AppState::Login(LoginState::Normal));
                             if let Ok(token) = self.daemon_connector.get_account_history().await {
                                 self.set_account_history(token);
                             }
                         }
-                        DeviceState::Revoked => self.set_state(AppState::Revoked),
                     },
                     Event::RemoveDevice(_) => {}
                     Event::AccountData(account_data) => {
@@ -836,12 +889,10 @@ impl AsyncComponent for AppModel {
                     Event::NewAccessMethod(_) => {}
                 };
                 self.update_properties();
-
-                if self.changed(AppModel::state()) {
-                    if let Some(account_action) = &self.account_action {
-                        account_action.set_enabled(self.is_logged_in());
-                    }
-                }
+            }
+            AppMsg::LoginError(error) | AppMsg::CreateAccountError(error) => {
+                self.set_banner_label(Some(error));
+                self.set_state(AppState::Login(LoginState::Normal));
             }
         }
     }
