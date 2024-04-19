@@ -3,6 +3,11 @@
     background-color: @success_bg_color;
 }
 
+.disable_lockdown_mode_btn {
+    color: @destructive_fg_color;
+    background-color: @destructive_bg_color;
+}
+
 .secure_my_connection_btn {
     color: @success_fg_color;
     background-color: @success_bg_color;

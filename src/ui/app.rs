@@ -55,6 +55,8 @@ pub struct AppModel {
     account_data: Option<AccountData>,
     account_history: Option<AccountToken>,
 
+    lockdown_mode: bool,
+
     banner_label: Option<String>,
     device_name: Option<String>,
     time_left: Option<String>,
@@ -467,6 +469,43 @@ impl AsyncComponent for AppModel {
                                 set_margin_all: 20,
                                 set_valign: gtk::Align::Center,
 
+                                // When `lockdown mode` is enabled.
+                                adw::Bin {
+                                    set_css_classes: &["card"],
+                                    set_margin_bottom: 20,
+
+                                    #[track = "model.changed(AppModel::lockdown_mode())"]
+                                    set_visible: model.lockdown_mode,
+
+                                    gtk::Box {
+                                        set_orientation: gtk::Orientation::Vertical,
+                                        set_margin_all: 20,
+                                        set_halign: gtk::Align::Fill,
+                                        set_spacing: 12,
+
+                                        gtk::Label {
+                                            set_label: &tr!("Blocking internet"),
+                                            set_css_classes: &["title-4"],
+                                            set_halign: gtk::Align::Start,
+                                        },
+
+                                        gtk::Label {
+                                            set_label: &tr!("<b>Lockdown mode</b> is enabled. Disable it to unblock your connection."),
+                                            set_use_markup: true,
+                                            set_wrap: true,
+                                            set_halign: gtk::Align::Start,
+                                        },
+
+                                        gtk::Button {
+                                            set_label: &tr!("Disable"),
+                                            set_css_classes: &["opaque", "disable_lockdown_mode_btn"],
+                                            connect_clicked[sender] => move |_| {
+                                                sender.input(AppInput::Set(Pref::LockdownMode(false)));
+                                            }
+                                        }
+                                    }
+                                },
+
                                 gtk::Label {
                                     set_label: &tr!("Login"),
                                     set_margin_bottom: 20,
@@ -784,6 +823,8 @@ impl AsyncComponent for AppModel {
                         }
                     }
                     Event::Setting(settings) => {
+                        self.set_lockdown_mode(settings.block_when_disconnected);
+
                         if let Some(components) = self.get_components() {
                             components
                                 .preferences
