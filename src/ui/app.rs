@@ -492,7 +492,7 @@ impl AsyncComponent for AppModel {
                                         add_suffix: login_button = &gtk::Button {
                                             set_icon_name: "arrow2-right-symbolic",
                                             set_valign: gtk::Align::Center,
-                                            set_css_classes: &["flat"],
+                                            set_css_classes: &["opaque", "login_btn"],
                                             set_receives_default: true,
                                             connect_clicked[sender, account_number] => move |_| {
                                                 sender.input(AppInput::Login(account_number.text().into()));

@@ -1,3 +1,8 @@
+.login_btn {
+    color: @success_fg_color;
+    background-color: @success_bg_color;
+}
+
 .secure_my_connection_btn {
     color: @success_fg_color;
     background-color: @success_bg_color;
