@@ -35,6 +35,7 @@ pub enum AppInput {
     Login(AccountToken),
     Logout,
     CreateAccount,
+    ClearAccountHistory,
 }
 
 #[derive(Debug)]
@@ -511,7 +512,16 @@ impl AsyncComponent for AppModel {
                                         connect_activated[account_number, login_button] => move |this| {
                                             account_number.set_text(this.title().as_ref());
                                             login_button.emit_clicked();
-                                        }
+                                        },
+
+                                        add_suffix = &gtk::Button {
+                                            set_icon_name: "cross-large-circle-filled-symbolic",
+                                            set_valign: gtk::Align::Center,
+                                            set_css_classes: &["flat"],
+                                            connect_clicked[sender] => move |_| {
+                                                sender.input(AppInput::ClearAccountHistory);
+                                            }
+                                        },
                                     },
                                 },
 
@@ -663,6 +673,12 @@ impl AsyncComponent for AppModel {
                     .map_err(|_| tr!("Creating account failed")) // TODO: process other errors.
                     .err();
                 self.set_banner_label(error_text);
+            }
+            AppInput::ClearAccountHistory => {
+                let _ = daemon_connector.clear_account_history().await;
+                if let Ok(token) = self.daemon_connector.get_account_history().await {
+                    self.set_account_history(token);
+                }
             }
             AppInput::SecureMyConnection => {
                 let _ = daemon_connector.secure_my_connection().await;
