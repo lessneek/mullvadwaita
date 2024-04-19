@@ -386,7 +386,7 @@ impl AsyncComponent for AppModel {
                                         set_title: model.get_hostname().to_str(),
 
                                         add_row = &adw::ActionRow {
-                                            set_title: "Tunnel protocol",
+                                            set_title: &tr!("Tunnel protocol"),
                                             set_css_classes: &["property", "monospace"],
 
                                             #[track = "model.changed(AppModel::tunnel_protocol())"]
@@ -394,7 +394,7 @@ impl AsyncComponent for AppModel {
                                         },
 
                                         add_row = &adw::ActionRow {
-                                            set_title: "In",
+                                            set_title: &tr!("In"),
                                             set_css_classes: &["property", "monospace"],
                                             set_subtitle_selectable: true,
 
@@ -403,7 +403,7 @@ impl AsyncComponent for AppModel {
                                         },
 
                                         add_row = &adw::ActionRow {
-                                            set_title: "Out",
+                                            set_title: &tr!("Out"),
                                             set_css_classes: &["property", "monospace"],
                                             set_subtitle_selectable: true,
 
