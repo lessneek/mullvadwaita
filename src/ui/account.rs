@@ -20,7 +20,7 @@ pub struct AccountModel {
 
     device_name: String,
     account_number: String,
-    paid_until: String,
+    paid_until: Option<String>,
 }
 
 #[derive(Debug)]
@@ -96,7 +96,7 @@ impl SimpleAsyncComponent for AccountModel {
                         set_title: &tr!("Paid until"),
 
                         #[track = "model.changed(AccountModel::paid_until())"]
-                        set_subtitle: model.get_paid_until(),
+                        set_subtitle: model.get_paid_until().as_ref().unwrap_or(&tr!("Currently unavalable")),
 
                         set_css_classes: &["property"],
                         set_subtitle_selectable: true,
@@ -146,7 +146,8 @@ impl SimpleAsyncComponent for AccountModel {
             }
             AccountMsg::UpdateAccountData(account_data) => {
                 let paid_until = account_data.expiry.with_timezone(Local::now().offset());
-                self.set_paid_until(paid_until.naive_local().to_string());
+                let paid_until = paid_until.naive_local().to_string();
+                self.set_paid_until(Some(paid_until));
             }
         }
     }
