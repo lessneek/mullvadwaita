@@ -2,12 +2,14 @@ use std::convert::identity;
 
 use super::about;
 use super::account::{AccountModel, AccountMsg};
+use super::main_window::MainWindow;
 use super::preferences::{Pref, PreferencesModel, PreferencesMsg};
 
 use crate::extensions::{ToStr, TunnelStateExt};
 use crate::mullvad::{self, DaemonConnector, Event};
 
 use crate::tr;
+
 use chrono::prelude::*;
 use futures::FutureExt;
 use mullvad_management_interface::Error;
@@ -115,6 +117,17 @@ impl AppState {
 impl AppModel {
     fn is_logged_in(&self) -> bool {
         matches!(self.get_state(), AppState::LoggedIn { .. })
+    }
+
+    fn is_logging_in(&self) -> bool {
+        matches!(self.get_state(), AppState::Login(LoginState::LoggingIn))
+    }
+
+    fn is_creating_account(&self) -> bool {
+        matches!(
+            self.get_state(),
+            AppState::Login(LoginState::CreatingAccount)
+        )
     }
 
     fn can_secure_connection(&self) -> bool {
@@ -238,6 +251,32 @@ impl AppModel {
             });
         }
     }
+
+    fn get_current_view_name(&self) -> &'static str {
+        match (self.get_state(), self.get_tunnel_state().is_some()) {
+            // Main page.
+            (AppState::LoggedIn(_), true) => "logged_in",
+            (AppState::Login(_), ..) => "login",
+            (AppState::ConnectingToDaemon, ..) | (_, false) => "connecting_to_daemon",
+        }
+    }
+
+    pub fn get_tunnel_state_view_name(&self) -> &'static str {
+        self.get_tunnel_state()
+            .as_ref()
+            .map(|tunnel_state| match tunnel_state {
+                TunnelState::Connected { .. } => "connected",
+                TunnelState::Connecting { .. } => "connecting",
+                TunnelState::Disconnected {
+                    locked_down: true, ..
+                } => "disabled",
+                TunnelState::Disconnected {
+                    locked_down: false, ..
+                } => "disconnected",
+                _ => "_",
+            })
+            .unwrap_or("_")
+    }
 }
 
 #[relm4::component(async, pub)]
@@ -248,389 +287,194 @@ impl AsyncComponent for AppModel {
     type CommandOutput = AppMsg;
 
     view! {
+        #[root]
+        #[template]
         #[name = "main_window"]
-        adw::Window {
-            set_default_size: (300, 600),
+        MainWindow {
+            #[template_child]
+            primary_menu_button {
+                set_menu_model: Some(&primary_menu),
+            },
 
-            gtk::Box {
-                set_orientation: gtk::Orientation::Vertical,
+            #[template_child]
+            banner {
+                #[track = "model.changed(AppModel::banner_label())"]
+                set_title: model.get_banner_label().to_str(),
 
-                adw::HeaderBar {
-                    add_css_class: "flat",
+                #[track = "model.changed(AppModel::banner_label())"]
+                set_revealed: model.get_banner_label().is_some(),
+            },
 
-                    #[wrap(Some)]
-                    set_title_widget = &adw::WindowTitle {
-                        set_title: "Mullvadwaita",
-                        set_subtitle: "for Mullvad VPN",
-                    },
+            #[template_child]
+            view_stack {
+                #[watch]
+                set_visible_child_name: model.get_current_view_name(),
+            },
 
-                    pack_end = &gtk::MenuButton {
-                        set_icon_name: "open-menu-symbolic",
-                        set_menu_model: Some(&primary_menu),
-                    },
-                },
+            #[template_child]
+            logged_in_view.device_name_label {
+                #[track = "model.changed(AppModel::device_name())"]
+                set_label: model.get_device_name().to_str(),
+            },
 
-                adw::Banner {
-                    #[track = "model.changed(AppModel::banner_label())"]
-                    set_title: model.get_banner_label().to_str(),
+            #[template_child]
+            logged_in_view.time_left_label {
+                #[track = "model.changed(AppModel::time_left())"]
+                set_label: model.get_time_left().to_str(),
+            },
 
-                    #[track = "model.changed(AppModel::banner_label())"]
-                    set_revealed: model.get_banner_label().is_some()
-                },
+            #[template_child]
+            logged_in_view.tunnel_state_view.view_stack {
+                #[track = "model.tunnel_state_changed()"]
+                set_visible_child_name: model.get_tunnel_state_view_name(),
+            },
 
-                adw::Clamp {
-                    set_maximum_size: 600,
+            #[template_child]
+            logged_in_view.tunnel_state_label {
+                #[track = "model.changed(AppModel::tunnel_state_label())"]
+                set_label: model.get_tunnel_state_label().to_str(),
 
-                    #[transition(SlideLeftRight)]
-                    match (model.get_state(), model.get_tunnel_state()) {
-                        // Main page.
-                        (AppState::LoggedIn(_), Some(tunnel_state)) => {
-                            gtk::Box {
-                                set_orientation: gtk::Orientation::Vertical,
-                                set_valign: gtk::Align::Fill,
-                                set_margin_all: 20,
+                #[track = "model.tunnel_state_changed()"]
+                set_class_active[model.is_connected()]: "connected_state_label"
+            },
 
-                                gtk::Box {
-                                    set_orientation: gtk::Orientation::Horizontal,
-                                    set_halign: gtk::Align::Fill,
+            #[template_child]
+            logged_in_view.country_label {
+                #[track = "model.changed(AppModel::country())"]
+                set_label: model.get_country().to_str(),
+            },
 
-                                    gtk::Label {
-                                        #[track = "model.changed(AppModel::device_name())"]
-                                        set_label: model.get_device_name().to_str(),
-                                        set_css_classes: &["caption"],
-                                        set_selectable: true,
-                                        set_use_markup: true,
-                                        set_hexpand: true,
-                                        set_margin_end: 10,
-                                        set_halign: gtk::Align::Start,
-                                    },
-                                    gtk::Label {
-                                        #[track = "model.changed(AppModel::time_left())"]
-                                        set_label: model.get_time_left().to_str(),
-                                        set_css_classes: &["caption"],
-                                        set_selectable: true,
-                                        set_use_markup: true,
-                                        set_halign: gtk::Align::End,
-                                    }
-                                },
+            #[template_child]
+            logged_in_view.city_label {
+                #[track = "model.changed(AppModel::city())"]
+                set_label: model.get_city().to_str(),
+            },
 
-                                adw::Bin {
-                                    set_height_request: 128,
-                                    set_width_request: 128,
-                                    set_margin_all: 16,
-                                    set_halign: gtk::Align::Center,
+            #[template_child]
+            logged_in_view.hostname_listbox {
+                #[track = "model.changed(AppModel::hostname())"]
+                set_visible: model.get_hostname().is_some(),
+            },
 
-                                    match tunnel_state {
-                                        TunnelState::Connected { .. } => {
-                                            gtk::Image {
-                                                set_icon_name: Some("network-vpn-symbolic"),
-                                                set_css_classes: &[
-                                                    "connection_state_icon",
-                                                    "connected",
-                                                    "icon-dropshadow"
-                                                ]
-                                            }
-                                        },
-                                        TunnelState::Connecting { .. } => {
-                                            gtk::Spinner {
-                                                set_spinning: true,
-                                                set_height_request: 64,
-                                                set_width_request: 64,
-                                                set_halign: gtk::Align::Center,
-                                                set_valign: gtk::Align::Center,
-                                            }
-                                        },
-                                        TunnelState::Disconnected { locked_down: true, .. } => {
-                                            gtk::Image {
-                                                set_icon_name: Some("network-vpn-disabled-symbolic"),
-                                                set_css_classes: &[
-                                                    "connection_state_icon",
-                                                    "disabled",
-                                                    "icon-dropshadow"
-                                                ]
-                                            }
-                                        },
-                                        TunnelState::Disconnected { locked_down: false, .. } => {
-                                            gtk::Image {
-                                                set_icon_name: Some("network-vpn-disconnected-symbolic"),
-                                                set_css_classes: &[
-                                                    "connection_state_icon",
-                                                    "disconnected",
-                                                    "icon-dropshadow"
-                                                ]
-                                            }
-                                        },
-                                        _ => {
-                                            gtk::Label {}
-                                        }
-                                    }
-                                },
+            #[template_child]
+            logged_in_view.hostname_expander_row {
+                #[track = "model.changed(AppModel::hostname())"]
+                set_title: model.get_hostname().to_str(),
+            },
 
-                                gtk::Label {
-                                    #[track = "model.changed(AppModel::tunnel_state_label())"]
-                                    set_label: model.get_tunnel_state_label().to_str(),
-                                    set_margin_bottom: 10,
+            #[template_child]
+            logged_in_view.tunnel_protocol_row {
+                #[track = "model.changed(AppModel::tunnel_protocol())"]
+                set_subtitle: model.get_tunnel_protocol().to_str(),
+            },
 
-                                    #[track = "model.tunnel_state_changed()"]
-                                    set_css_classes: if model.is_connected() {
-                                        &["title-4", "connected_state_label"]
-                                    } else {
-                                        &["title-4"]
-                                    },
+            #[template_child]
+            logged_in_view.tunnel_in_row {
+                #[track = "model.changed(AppModel::tunnel_in())"]
+                set_subtitle: model.get_tunnel_in().to_str(),
+            },
 
-                                    set_wrap: true,
-                                    set_halign: gtk::Align::Start
-                                },
+            #[template_child]
+            logged_in_view.tunnel_out_row {
+                #[track = "model.changed(AppModel::tunnel_out())"]
+                set_subtitle: model.get_tunnel_out().to_str(),
+            },
 
-                                gtk::Label {
-                                    #[track = "model.changed(AppModel::country())"]
-                                    set_label: model.get_country().to_str(),
-                                    set_margin_bottom: 0,
-                                    add_css_class: "title-1",
-                                    set_wrap: true,
-                                    set_halign: gtk::Align::Start,
-                                },
+            #[template_child]
+            logged_in_view.secure_my_connection_button {
+                connect_clicked => AppInput::SecureMyConnection,
 
-                                gtk::Label {
-                                    #[track = "model.changed(AppModel::city())"]
-                                    set_label: model.get_city().to_str(),
-                                    set_margin_bottom: 20,
-                                    add_css_class: "title-1",
-                                    set_wrap: true,
-                                    set_halign: gtk::Align::Start
-                                },
+                #[track = "model.tunnel_state_changed()"]
+                set_visible: model.can_secure_connection(),
+            },
 
-                                gtk::ListBox {
-                                    add_css_class: "boxed-list",
-                                    set_selection_mode: gtk::SelectionMode::None,
-                                    set_margin_bottom: 20,
+            #[template_child]
+            logged_in_view.cancel_button {
+                connect_clicked => AppInput::CancelConnection,
 
-                                    #[track = "model.changed(AppModel::hostname())"]
-                                    set_visible: model.get_hostname().is_some(),
+                #[track = "model.tunnel_state_changed()"]
+                set_visible: model.is_connecting_or_reconnecting(),
+            },
 
-                                    adw::ExpanderRow {
-                                        #[track = "model.changed(AppModel::hostname())"]
-                                        set_title: model.get_hostname().to_str(),
+            #[template_child]
+            logged_in_view.disconnect_button {
+                connect_clicked => AppInput::Disconnect,
 
-                                        add_row = &adw::ActionRow {
-                                            set_title: &tr!("Tunnel protocol"),
-                                            set_css_classes: &["property", "monospace"],
+                #[track = "model.tunnel_state_changed()"]
+                set_visible: model.can_disconnect(),
+            },
 
-                                            #[track = "model.changed(AppModel::tunnel_protocol())"]
-                                            set_subtitle: model.get_tunnel_protocol().to_str(),
-                                        },
+            #[template_child]
+            logged_in_view.reconnect_button {
+                connect_clicked => AppInput::Reconnect,
 
-                                        add_row = &adw::ActionRow {
-                                            set_title: &tr!("In"),
-                                            set_css_classes: &["property", "monospace"],
-                                            set_subtitle_selectable: true,
+                #[track = "model.tunnel_state_changed()"]
+                set_visible: model.can_reconnect(),
+            },
 
-                                            #[track = "model.changed(AppModel::tunnel_in())"]
-                                            set_subtitle: model.get_tunnel_in().to_str(),
-                                        },
+            #[template_child]
+            login_view {
+                #[watch]
+                set_sensitive: !(model.is_logging_in() | model.is_creating_account()),
+            },
 
-                                        add_row = &adw::ActionRow {
-                                            set_title: &tr!("Out"),
-                                            set_css_classes: &["property", "monospace"],
-                                            set_subtitle_selectable: true,
+            #[template_child]
+            login_view.disable_lockdown_mode_bin {
+                #[track = "model.changed(AppModel::lockdown_mode())"]
+                set_visible: model.lockdown_mode,
+            },
 
-                                            #[track = "model.changed(AppModel::tunnel_out())"]
-                                            set_subtitle: model.get_tunnel_out().to_str(),
-                                        },
-                                    },
-                                },
-
-                                // Connection buttons box.
-                                gtk::Box {
-                                    add_css_class: "linked",
-                                    set_halign: gtk::Align::Center,
-                                    set_valign: gtk::Align::End,
-                                    set_vexpand: true,
-                                    set_width_request: 300,
-
-                                    gtk::Button {
-                                        connect_clicked => AppInput::SecureMyConnection,
-                                        set_hexpand: true,
-                                        set_label: &tr!("Secure my connection"),
-                                        set_css_classes: &["opaque", "secure_my_connection_btn"],
-
-                                        #[track = "model.tunnel_state_changed()"]
-                                        set_visible: model.can_secure_connection()
-                                    },
-
-                                    gtk::Button {
-                                        connect_clicked => AppInput::CancelConnection,
-                                        set_hexpand: true,
-                                        set_label: &tr!("Cancel"),
-                                        set_css_classes: &["opaque", "disconnect_btn"],
-
-                                        #[track = "model.tunnel_state_changed()"]
-                                        set_visible: model.is_connecting_or_reconnecting()
-                                    },
-
-                                    gtk::Button {
-                                        connect_clicked => AppInput::Disconnect,
-                                        set_hexpand: true,
-                                        set_label: &tr!("Disconnect"),
-                                        set_css_classes: &["opaque", "disconnect_btn"],
-
-                                        #[track = "model.tunnel_state_changed()"]
-                                        set_visible: model.can_disconnect()
-                                    },
-
-                                    gtk::Button {
-                                        connect_clicked => AppInput::Reconnect,
-                                        set_css_classes: &["opaque", "reconnect_btn"],
-                                        set_icon_name: "arrow-circular-top-right-symbolic",
-
-                                        #[track = "model.tunnel_state_changed()"]
-                                        set_visible: model.can_reconnect(),
-                                    },
-                                }
-                            }
-                        }
-                        // Login page.
-                        (AppState::Login(login_state), ..) => {
-                            gtk::Box {
-                                set_orientation: gtk::Orientation::Vertical,
-                                set_margin_all: 20,
-                                set_valign: gtk::Align::Center,
-
-                                #[watch]
-                                set_sensitive: !matches!(login_state, LoginState::LoggingIn | LoginState::CreatingAccount),
-
-                                // When `lockdown mode` is enabled.
-                                adw::Bin {
-                                    set_css_classes: &["card"],
-                                    set_margin_bottom: 20,
-
-                                    #[track = "model.changed(AppModel::lockdown_mode())"]
-                                    set_visible: model.lockdown_mode,
-
-                                    gtk::Box {
-                                        set_orientation: gtk::Orientation::Vertical,
-                                        set_margin_all: 20,
-                                        set_halign: gtk::Align::Fill,
-                                        set_spacing: 12,
-
-                                        gtk::Label {
-                                            set_label: &tr!("Blocking internet"),
-                                            set_css_classes: &["title-4"],
-                                            set_halign: gtk::Align::Start,
-                                        },
-
-                                        gtk::Label {
-                                            set_label: &tr!("<b>Lockdown mode</b> is enabled. Disable it to unblock your connection."),
-                                            set_use_markup: true,
-                                            set_wrap: true,
-                                            set_halign: gtk::Align::Start,
-                                        },
-
-                                        gtk::Button {
-                                            set_label: &tr!("Disable"),
-                                            set_css_classes: &["opaque", "disable_lockdown_mode_btn"],
-                                            connect_clicked[sender] => move |_| {
-                                                sender.input(AppInput::Set(Pref::LockdownMode(false)));
-                                            }
-                                        }
-                                    }
-                                },
-
-                                gtk::Label {
-                                    set_label: &tr!("Login"),
-                                    set_margin_bottom: 20,
-                                    add_css_class: "title-1",
-                                    set_halign: gtk::Align::Start,
-                                },
-
-                                gtk::ListBox {
-                                    add_css_class: "boxed-list",
-                                    set_selection_mode: gtk::SelectionMode::None,
-                                    set_margin_bottom: 20,
-
-                                    append: account_number = &adw::EntryRow {
-                                        set_title: &tr!("Enter your account number"),
-
-                                        #[track = "model.is_logged_in()"]
-                                        set_text: "",
-
-                                        connect_entry_activated[login_button] => move |_| {
-                                            login_button.emit_clicked();
-                                        },
-
-                                        add_suffix = match login_state {
-                                            LoginState::LoggingIn => {
-                                                gtk::Spinner {
-                                                    set_spinning: true,
-                                                }
-                                            }
-                                            _ => login_button = &gtk::Button {
-                                                set_icon_name: "arrow2-right-symbolic",
-                                                set_valign: gtk::Align::Center,
-                                                set_css_classes: &["opaque", "login_btn"],
-                                                set_receives_default: true,
-                                                connect_clicked[sender, account_number] => move |_| {
-                                                    sender.input(AppInput::Login(account_number.text().into()));
-                                                }
-                                            },
-                                        },
-                                    },
-
-                                    adw::ActionRow {
-                                        #[track = "model.changed(AppModel::account_history())"]
-                                        set_title: model.get_account_history().to_str(),
-
-                                        #[track = "model.changed(AppModel::account_history())"]
-                                        set_visible: model.get_account_history().is_some(),
-
-                                        set_activatable: true,
-
-                                        connect_activated[account_number, login_button] => move |this| {
-                                            account_number.set_text(this.title().as_ref());
-                                            login_button.emit_clicked();
-                                        },
-
-                                        add_suffix = &gtk::Button {
-                                            set_icon_name: "cross-large-circle-filled-symbolic",
-                                            set_valign: gtk::Align::Center,
-                                            set_css_classes: &["flat"],
-                                            connect_clicked[sender] => move |_| {
-                                                sender.input(AppInput::ClearAccountHistory);
-                                            }
-                                        },
-                                    },
-                                },
-
-                                gtk::Box {
-                                    set_orientation: gtk::Orientation::Vertical,
-
-                                    gtk::Label {
-                                        set_text: &tr!("Don’t have an account number?"),
-                                        set_halign: gtk::Align::Start,
-                                        set_css_classes: &["caption-heading"],
-                                        set_margin_bottom: 10,
-                                    },
-
-                                    gtk::Button {
-                                        set_label: &tr!("Create account"),
-                                        connect_clicked[sender] => move |_| {
-                                            sender.input(AppInput::CreateAccount);
-                                        },
-                                    },
-                                },
-                            }
-                        }
-                        (AppState::ConnectingToDaemon, ..) | (_, None) => {
-                            gtk::Label {
-                                set_label: &tr!("Connecting to Mullvad system service..."),
-                                set_margin_all: 5,
-                                add_css_class: "title-4",
-                                set_wrap: true
-                            }
-                        }
-                    }
+            #[template_child]
+            login_view.disable_lockdown_mode_button {
+                connect_clicked[sender] => move |_| {
+                    sender.input(AppInput::Set(Pref::LockdownMode(false)));
                 }
-            }
+            },
+
+            #[template_child]
+            login_view.account_number {
+                #[track = "model.is_logged_in()"]
+                set_text: "",
+
+                connect_entry_activated[main_window] => move |_| {
+                    main_window.login_view.login_button.emit_clicked();
+                },
+            },
+
+            #[template_child]
+            login_view.login_button_stack {
+                set_visible_child_name: if model.is_logging_in() { "logging_in" } else { "default" }
+            },
+
+            #[template_child]
+            login_view.login_button {
+                connect_clicked[sender, main_window] => move |_| {
+                    sender.input(AppInput::Login(main_window.login_view.account_number.text().into()));
+                }
+            },
+
+            #[template_child]
+            login_view.account_history_row {
+                #[track = "model.changed(AppModel::account_history())"]
+                set_title: model.get_account_history().to_str(),
+
+                #[track = "model.changed(AppModel::account_history())"]
+                set_visible: model.get_account_history().is_some(),
+            },
+
+            #[template_child]
+            login_view.clear_account_history_button {
+                connect_clicked[sender] => move |_| {
+                    sender.input(AppInput::ClearAccountHistory);
+                }
+            },
+
+            #[template_child]
+            login_view.create_account_button {
+                connect_clicked[sender] => move |_| {
+                    sender.input(AppInput::CreateAccount);
+                },
+            },
         }
     }
 
@@ -693,11 +537,11 @@ impl AsyncComponent for AppModel {
         let model = AppModel {
             components: Some(AppComponents {
                 account: AccountModel::builder()
-                    .transient_for(&root)
+                    .transient_for(&*root)
                     .launch(())
                     .forward(sender.input_sender(), identity),
                 preferences: PreferencesModel::builder()
-                    .transient_for(&root)
+                    .transient_for(&*root)
                     .launch(())
                     .forward(sender.input_sender(), identity),
             }),
@@ -707,7 +551,7 @@ impl AsyncComponent for AppModel {
 
         let widgets = view_output!();
 
-        group.register_for_widget(&widgets.main_window);
+        group.register_for_widget(&*widgets.main_window);
 
         AsyncComponentParts { model, widgets }
     }
@@ -719,6 +563,8 @@ impl AsyncComponent for AppModel {
         root: &Self::Root,
     ) {
         self.reset();
+
+        log::debug!("AppInput: {message:#?}");
 
         match message {
             AppInput::Login(account_token) => {
@@ -732,10 +578,13 @@ impl AsyncComponent for AppModel {
                             .login_account(account_token)
                             .await
                             .map_err(|err| {
-                                log::debug!("{:#?}", err);
+                                log::debug!("Login error: {:#?}", err);
                                 match err.downcast_ref() {
                                     Some(Error::InvalidAccount) => {
                                         tr!("Login failed. Invalid account number.")
+                                    }
+                                    Some(Error::TooManyDevices) => {
+                                        tr!("Login failed. Too many devices.")
                                     }
                                     // TODO: process other errors.
                                     _ => tr!("Login failed"),
@@ -809,7 +658,7 @@ impl AsyncComponent for AppModel {
                     self.daemon_connector.set_enable_ipv6(value).await.ok();
                 }
             },
-            AppInput::About => about::show_about_dialog(root),
+            AppInput::About => about::show_about_dialog(&**root),
         }
     }
 

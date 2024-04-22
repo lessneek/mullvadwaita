@@ -1,5 +1,5 @@
 use adw::prelude::*;
-use relm4::*;
+use relm4::prelude::*;
 
 #[relm4::widget_template(pub)]
 impl WidgetTemplate for InfoButton {
