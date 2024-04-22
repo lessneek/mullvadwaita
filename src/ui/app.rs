@@ -1,5 +1,6 @@
 use std::convert::identity;
 
+use super::about;
 use super::account::{AccountModel, AccountMsg};
 use super::preferences::{Pref, PreferencesModel, PreferencesMsg};
 
@@ -808,25 +809,7 @@ impl AsyncComponent for AppModel {
                     self.daemon_connector.set_enable_ipv6(value).await.ok();
                 }
             },
-            AppInput::About => {
-                let dialog = adw::AboutWindow::builder()
-                    .icon_name("background-app-ghost-symbolic")
-                    .application_icon("background-app-ghost-symbolic")
-                    .application_name("Mullvadwaita")
-                    .developer_name("Lessneek")
-                    .website("Website")
-                    .copyright("© 2024 Lessneek")
-                    .license_type(gtk::License::Gpl30)
-                    .website("https://github.com/lessneek/mullvadwaita")
-                    .issue_url("https://github.com/lessneek/mullvadwaita/issues")
-                    .version(env!("CARGO_PKG_VERSION"))
-                    .modal(true)
-                    .transient_for(root)
-                    .developers(vec!["Lessneek", "aiska"])
-                    .comments("Mullvad VPN daemon controller.")
-                    .build();
-                dialog.present();
-            }
+            AppInput::About => about::show_about_dialog(root),
         }
     }
 
