@@ -73,11 +73,12 @@ impl SimpleAsyncComponent for PreferencesModel {
                         set_subtitle: &tr!("Automatically connect to a server when the app launches."),
 
                         #[track = "model.changed(PreferencesModel::auto_connect())"]
+                        #[block_signal(auto_connect_active_notify_handler)]
                         set_active: model.auto_connect,
 
                         connect_active_notify[sender] => move |this| {
                             let _ = sender.output(AppInput::Set(Pref::AutoConnect(this.is_active())));
-                        }
+                        } @auto_connect_active_notify_handler
                     },
 
                     add = &adw::SwitchRow {
@@ -87,11 +88,12 @@ impl SimpleAsyncComponent for PreferencesModel {
                         },
 
                         #[track = "model.changed(PreferencesModel::local_network_sharing())"]
+                        #[block_signal(local_network_sharing_active_notify_handler)]
                         set_active: model.local_network_sharing,
 
                         connect_active_notify[sender] => move |this| {
                             let _ = sender.output(AppInput::Set(Pref::LocalNetworkSharing(this.is_active())));
-                        },
+                        } @local_network_sharing_active_notify_handler,
 
                         #[template]
                         add_suffix = &InfoButton {
@@ -115,11 +117,12 @@ impl SimpleAsyncComponent for PreferencesModel {
                         },
 
                         #[track = "model.changed(PreferencesModel::lockdown_mode())"]
+                        #[block_signal(lockdown_mode_active_notify_handler)]
                         set_active: model.lockdown_mode,
 
                         connect_active_notify[sender] => move |this| {
                             let _ = sender.output(AppInput::Set(Pref::LockdownMode(this.is_active())));
-                        },
+                        } @lockdown_mode_active_notify_handler,
 
                         #[template]
                         add_suffix = &InfoButton {
@@ -142,11 +145,12 @@ impl SimpleAsyncComponent for PreferencesModel {
                         },
 
                         #[track = "model.changed(PreferencesModel::enable_ipv6())"]
+                        #[block_signal(enable_ipv6_active_notify_handler)]
                         set_active: model.enable_ipv6,
 
                         connect_active_notify[sender] => move |this| {
                             let _ = sender.output(AppInput::Set(Pref::EnableIPv6(this.is_active())));
-                        },
+                        } @enable_ipv6_active_notify_handler,
 
                         #[template]
                         add_suffix = &InfoButton {
