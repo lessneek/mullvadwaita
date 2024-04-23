@@ -110,6 +110,41 @@ impl SimpleAsyncComponent for PreferencesModel {
                         },
                     },
 
+                    add = &adw::ActionRow {
+                        set_title: &tr!("Kill switch"),
+                        add_prefix = &gtk::Image {
+                            set_icon_name: Some("stop-sign-large-symbolic"),
+                        },
+                        set_activatable: true,
+
+                        connect_activated[kill_switch_info_button] => move |_| {
+                            kill_switch_info_button.info_menu_button.set_active(true);
+                        },
+
+                        add_suffix = &gtk::Box {
+                            gtk::Switch {
+                                set_valign: gtk::Align::Center,
+                                set_margin_end: 7,
+                                set_active: true,
+                                set_sensitive: false,
+                            },
+
+                            #[template]
+                            #[name = "kill_switch_info_button"]
+                            InfoButton {
+                                #[template_child]
+                                info_label {
+                                    set_label: {
+                                        &format!("{}\n\n{}",
+                                            &tr!("This built-in feature prevents your traffic from leaking outside of the VPN tunnel if your network suddenly stops working or if the tunnel fails, it does this by blocking your traffic until your connection is reestablished."),
+                                            &tr!("The difference between the Kill Switch and Lockdown Mode is that the Kill Switch will prevent any leaks from happening during automatic tunnel reconnects, software crashes and similar accidents. With Lockdown Mode enabled, you must be connected to a Mullvad VPN server to be able to reach the internet. Manually disconnecting or quitting the app will block your connection.")
+                                        )
+                                    },
+                                }
+                            },
+                        }
+                    },
+
                     add = &adw::SwitchRow {
                         set_title: &tr!("Lockdown mode"),
                         add_prefix = &gtk::Image {

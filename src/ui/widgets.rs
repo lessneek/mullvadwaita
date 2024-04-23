@@ -4,6 +4,7 @@ use relm4::prelude::*;
 #[relm4::widget_template(pub)]
 impl WidgetTemplate for InfoButton {
     view! {
+        #[name = "info_menu_button"]
         gtk::MenuButton {
             set_icon_name: "info-outline-symbolic",
             set_valign: gtk::Align::Center,
