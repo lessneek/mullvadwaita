@@ -177,9 +177,10 @@ impl AppModel {
         self.changed(AppModel::tunnel_state())
     }
 
-    fn get_tunnel_state_if_changed(&self) -> Option<Option<&TunnelState>> {
+    fn get_tunnel_state_if_changed(&self) -> Option<&TunnelState> {
         self.tunnel_state_changed()
-            .then_some(self.get_tunnel_state().as_ref())
+            .then(|| self.get_tunnel_state().as_ref())
+            .flatten()
     }
 
     fn get_account_token(&self) -> Option<String> {
@@ -202,7 +203,7 @@ impl AppModel {
     }
 
     fn update_properties(&mut self) {
-        if let Some(Some(ts)) = self.get_tunnel_state_if_changed() {
+        if let Some(ts) = self.get_tunnel_state_if_changed() {
             let banner_label = match ts {
                 TunnelState::Error(error_state) => Some(format!("{}", error_state.cause())),
                 _ => None,
