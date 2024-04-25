@@ -658,6 +658,12 @@ impl AsyncComponent for AppModel {
                 Pref::EnableIPv6(value) => {
                     self.daemon_connector.set_enable_ipv6(value).await.ok();
                 }
+                Pref::RelaySettings(relay_settings) => {
+                    self.daemon_connector
+                        .set_relay_settings(*relay_settings)
+                        .await
+                        .ok();
+                }
             },
             AppInput::About => about::show_about_dialog(&**root),
         }

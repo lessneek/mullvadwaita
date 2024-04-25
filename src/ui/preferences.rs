@@ -1,11 +1,15 @@
 use adw::prelude::*;
-use mullvad_types::settings::Settings;
+use mullvad_types::{
+    relay_constraints::{Constraint, RelaySettings},
+    settings::Settings,
+};
 use relm4::{
     component::{AsyncComponentParts, SimpleAsyncComponent},
     *,
 };
 
 use smart_default::SmartDefault;
+use talpid_types::net::TunnelType;
 
 use crate::tr;
 
@@ -31,6 +35,7 @@ pub struct PreferencesModel {
     lockdown_mode: bool,
     enable_ipv6: bool,
     auto_connect: bool,
+    relay_settings: Option<RelaySettings>,
 }
 
 #[derive(Debug)]
@@ -38,6 +43,7 @@ pub enum PreferencesMsg {
     Show,
     Close,
     UpdateSettings(Settings),
+    SetTunnelProtocol(Constraint<TunnelType>),
 }
 
 #[derive(Debug)]
@@ -46,6 +52,21 @@ pub enum Pref {
     LocalNetworkSharing(bool),
     LockdownMode(bool),
     EnableIPv6(bool),
+    RelaySettings(Box<RelaySettings>),
+}
+
+impl PreferencesModel {
+    fn get_tunnel_protocol(&self) -> Option<Constraint<TunnelType>> {
+        if let Some(RelaySettings::Normal(relay_constraints)) = self.get_relay_settings() {
+            return Some(relay_constraints.tunnel_protocol);
+        }
+        None
+    }
+
+    fn is_tunnel_protocol_matches(&self, constraint: Constraint<TunnelType>) -> bool {
+        self.get_tunnel_protocol()
+            .is_some_and(|tp| tp == constraint)
+    }
 }
 
 #[relm4::component(async, pub)]
@@ -205,7 +226,87 @@ impl SimpleAsyncComponent for PreferencesModel {
                             }
                         },
                     },
-                }
+                },
+
+                // Tunnel protocol.
+                add = &adw::PreferencesGroup {
+                    set_title: &tr!("Tunnel protocol"),
+
+                    #[track = "model.changed(PreferencesModel::relay_settings())"]
+                    set_sensitive: matches!(model.get_relay_settings(), Some(RelaySettings::Normal(_))),
+
+                    add = &adw::ActionRow {
+                        set_title: &tr!("Automatic"),
+                        set_activatable: true,
+
+                        #[name = "automatic_tp_check_button"]
+                        add_prefix = &gtk::CheckButton {
+                            #[track = "model.changed(PreferencesModel::relay_settings())"]
+                            #[block_signal(automatic_tp_activate_handler)]
+                            set_active: model.is_tunnel_protocol_matches(Constraint::Any),
+
+                            connect_active_notify[sender] => move |this| {
+                                if this.is_active() {
+                                    sender.input(PreferencesMsg::SetTunnelProtocol(Constraint::Any));
+                                }
+                            } @automatic_tp_activate_handler,
+                        },
+
+                        connect_activated[automatic_tp_check_button] => move |_| {
+                            automatic_tp_check_button.emit_activate();
+                        },
+                    },
+
+                    add = &adw::ActionRow {
+                        set_title: &tr!("WireGuard"),
+                        set_activatable: true,
+
+                        #[name = "wireguard_tp_check_button"]
+                        add_prefix = &gtk::CheckButton {
+                            set_group: Some(&automatic_tp_check_button),
+
+                            #[track = "model.changed(PreferencesModel::relay_settings())"]
+                            #[block_signal(wireguard_tp_activate_handler)]
+                            set_active: model.is_tunnel_protocol_matches(Constraint::Only(TunnelType::Wireguard)),
+
+                            connect_active_notify[sender] => move |this| {
+                                if this.is_active() {
+                                    sender.input(PreferencesMsg::SetTunnelProtocol(Constraint::Only(TunnelType::Wireguard)));
+                                }
+                            } @wireguard_tp_activate_handler,
+                        },
+
+                        connect_activated[wireguard_tp_check_button] => move |_| {
+                            wireguard_tp_check_button.emit_activate();
+                        },
+                    },
+
+                    add = &adw::ActionRow {
+                        set_title: &tr!("OpenVPN"),
+                        set_activatable: true,
+
+                        #[name = "openvpn_tp_check_button"]
+                        add_prefix = &gtk::CheckButton {
+                            set_group: Some(&automatic_tp_check_button),
+
+                            #[track = "model.changed(PreferencesModel::relay_settings())"]
+                            #[block_signal(openvpn_tp_activate_handler)]
+                            set_active: {
+                                model.is_tunnel_protocol_matches(Constraint::Only(TunnelType::OpenVpn))
+                            },
+
+                            connect_active_notify[sender] => move |this| {
+                                if this.is_active() {
+                                    sender.input(PreferencesMsg::SetTunnelProtocol(Constraint::Only(TunnelType::OpenVpn)));
+                                }
+                            } @openvpn_tp_activate_handler,
+                        },
+
+                        connect_activated[openvpn_tp_check_button] => move |_| {
+                            openvpn_tp_check_button.emit_activate();
+                        },
+                    },
+                },
             }
         }
     }
@@ -225,8 +326,10 @@ impl SimpleAsyncComponent for PreferencesModel {
         AsyncComponentParts { model, widgets }
     }
 
-    async fn update(&mut self, message: Self::Input, _sender: AsyncComponentSender<Self>) {
+    async fn update(&mut self, message: Self::Input, sender: AsyncComponentSender<Self>) {
         self.reset();
+
+        log::debug!("PreferencesMsg: {message:#?}");
 
         match message {
             PreferencesMsg::Show => self.window.present(),
@@ -236,6 +339,20 @@ impl SimpleAsyncComponent for PreferencesModel {
                 self.set_local_network_sharing(settings.allow_lan);
                 self.set_lockdown_mode(settings.block_when_disconnected);
                 self.set_enable_ipv6(settings.tunnel_options.generic.enable_ipv6);
+                self.set_relay_settings(Some(settings.relay_settings));
+            }
+            PreferencesMsg::SetTunnelProtocol(constraint) => {
+                if let Some(RelaySettings::Normal(relay_constraints)) =
+                    self.get_mut_relay_settings()
+                {
+                    relay_constraints.tunnel_protocol = constraint;
+
+                    sender
+                        .output(AppInput::Set(Pref::RelaySettings(Box::new(
+                            RelaySettings::Normal(relay_constraints.clone()),
+                        ))))
+                        .ok();
+                }
             }
         }
     }

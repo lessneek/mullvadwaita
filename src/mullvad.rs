@@ -7,6 +7,7 @@ use mullvad_types::{
     access_method::AccessMethodSetting,
     account::{AccountData, AccountToken},
     device::{DeviceEvent, DeviceEventCause, DeviceState, RemoveDeviceEvent},
+    relay_constraints::RelaySettings,
     relay_list::RelayList,
     settings::Settings,
     states::TunnelState,
@@ -188,5 +189,9 @@ impl DaemonConnector {
 
     pub async fn create_new_account(&mut self) -> Result<AccountToken> {
         Ok(self.get_client().await?.create_new_account().await?)
+    }
+
+    pub async fn set_relay_settings(&mut self, update: RelaySettings) -> Result<()> {
+        Ok(self.get_client().await?.set_relay_settings(update).await?)
     }
 }
