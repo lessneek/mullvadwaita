@@ -65,6 +65,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                 add = &adw::PreferencesGroup {
                     set_title: &tr!("VPN"),
 
+                    // Auto-connect.
                     add = &adw::SwitchRow {
                         set_title: &tr!("Auto-connect"),
                         add_prefix = &gtk::Image {
@@ -81,6 +82,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                         } @auto_connect_active_notify_handler
                     },
 
+                    // Local network sharing.
                     add = &adw::SwitchRow {
                         set_title: &tr!("Local network sharing"),
                         add_prefix = &gtk::Image {
@@ -110,6 +112,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                         },
                     },
 
+                    // Kill switch.
                     add = &adw::ActionRow {
                         set_title: &tr!("Kill switch"),
                         add_prefix = &gtk::Image {
@@ -145,6 +148,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                         }
                     },
 
+                    // Lockdown mode.
                     add = &adw::SwitchRow {
                         set_title: &tr!("Lockdown mode"),
                         add_prefix = &gtk::Image {
@@ -173,6 +177,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                         },
                     },
 
+                    // Enable IPv6.
                     add = &adw::SwitchRow {
                         set_title: &tr!("Enable IPv6"),
                         add_prefix = &gtk::Image {
