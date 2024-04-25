@@ -112,6 +112,35 @@ impl SimpleAsyncComponent for PreferencesModel {
                         },
                     },
 
+                    // Enable IPv6.
+                    add = &adw::SwitchRow {
+                        set_title: &tr!("Enable IPv6"),
+                        add_prefix = &gtk::Image {
+                            set_icon_name: Some("globe-alt2-symbolic"),
+                        },
+
+                        #[track = "model.changed(PreferencesModel::enable_ipv6())"]
+                        #[block_signal(enable_ipv6_active_notify_handler)]
+                        set_active: model.enable_ipv6,
+
+                        connect_active_notify[sender] => move |this| {
+                            let _ = sender.output(AppInput::Set(Pref::EnableIPv6(this.is_active())));
+                        } @enable_ipv6_active_notify_handler,
+
+                        #[template]
+                        add_suffix = &InfoButton {
+                            #[template_child]
+                            info_label {
+                                set_label: {
+                                    &format!("{}\n\n{}",
+                                        &tr!("IPv4 is always enabled and the majority of websites and applications use this protocol. We do not recommend enabling IPv6 unless you know you need it."),
+                                        &tr!("When this feature is enabled, IPv6 can be used alongside IPv4 in the VPN tunnel to communicate with internet services.")
+                                    )
+                                },
+                            }
+                        },
+                    },
+
                     // Kill switch.
                     add = &adw::ActionRow {
                         set_title: &tr!("Kill switch"),
@@ -176,35 +205,6 @@ impl SimpleAsyncComponent for PreferencesModel {
                             }
                         },
                     },
-
-                    // Enable IPv6.
-                    add = &adw::SwitchRow {
-                        set_title: &tr!("Enable IPv6"),
-                        add_prefix = &gtk::Image {
-                            set_icon_name: Some("globe-alt2-symbolic"),
-                        },
-
-                        #[track = "model.changed(PreferencesModel::enable_ipv6())"]
-                        #[block_signal(enable_ipv6_active_notify_handler)]
-                        set_active: model.enable_ipv6,
-
-                        connect_active_notify[sender] => move |this| {
-                            let _ = sender.output(AppInput::Set(Pref::EnableIPv6(this.is_active())));
-                        } @enable_ipv6_active_notify_handler,
-
-                        #[template]
-                        add_suffix = &InfoButton {
-                            #[template_child]
-                            info_label {
-                                set_label: {
-                                    &format!("{}\n\n{}",
-                                        &tr!("IPv4 is always enabled and the majority of websites and applications use this protocol. We do not recommend enabling IPv6 unless you know you need it."),
-                                        &tr!("When this feature is enabled, IPv6 can be used alongside IPv4 in the VPN tunnel to communicate with internet services.")
-                                    )
-                                },
-                            }
-                        },
-                    }
                 }
             }
         }
