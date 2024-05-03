@@ -6,4 +6,5 @@ pub mod login_view;
 pub mod main_window;
 pub mod preferences;
 pub mod radio_buttons_list;
+pub mod types;
 pub mod widgets;
