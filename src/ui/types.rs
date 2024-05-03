@@ -2,9 +2,14 @@ use mullvad_types::relay_constraints::Constraint;
 use talpid_types::net::TunnelType;
 use tr::tr;
 
-use crate::ui::radio_buttons_list::VariantType;
+pub enum ViewType<E> {
+    Label(String),
+    Entry(String, Box<dyn Fn(String) -> Option<E>>),
+}
 
-use super::radio_buttons_list::RadioButtonsListVariant;
+pub trait ViewElement: Sized {
+    fn get_view_type(&self) -> ViewType<Self>;
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TunnelProtocol {
@@ -20,13 +25,13 @@ impl TunnelProtocol {
     }
 }
 
-impl RadioButtonsListVariant for TunnelProtocol {
-    fn get_variant_type(&self) -> VariantType<Self> {
+impl ViewElement for TunnelProtocol {
+    fn get_view_type(&self) -> ViewType<Self> {
         use TunnelProtocol::*;
         match self {
-            Automatic => VariantType::Label(tr!("Automatic")),
-            WireGuard => VariantType::Label(tr!("WireGuard")),
-            OpenVPN => VariantType::Label(tr!("OpenVPN")),
+            Automatic => ViewType::Label(tr!("Automatic")),
+            WireGuard => ViewType::Label(tr!("WireGuard")),
+            OpenVPN => ViewType::Label(tr!("OpenVPN")),
         }
     }
 }

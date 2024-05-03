@@ -3,6 +3,8 @@ use gtk::glib::SignalHandlerId;
 use relm4::prelude::*;
 use std::fmt::Debug;
 
+use super::types::{ViewElement, ViewType};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RadioButtonsList<V> {
     variants: Vec<V>,
@@ -21,7 +23,7 @@ pub struct RadioButtonsListWidgets<V> {
 
 impl<V> Component for RadioButtonsList<V>
 where
-    V: RadioButtonsListVariant + Debug + Clone + Copy + PartialEq + 'static,
+    V: ViewElement + Debug + Clone + Copy + PartialEq + 'static,
 {
     type CommandOutput = ();
     type Input = RadioButtonsListMsg<V>;
@@ -88,7 +90,7 @@ where
 
 impl<V> RadioButtonsList<V>
 where
-    V: RadioButtonsListVariant + Debug + Clone + Copy + PartialEq + 'static,
+    V: ViewElement + Debug + Clone + Copy + PartialEq + 'static,
 {
     fn render(
         &self,
@@ -100,8 +102,8 @@ where
         widgets.check_buttons.clear();
 
         for variant in self.variants.iter() {
-            let row = match variant.get_variant_type() {
-                VariantType::Label(label) => {
+            match variant.get_view_type() {
+                ViewType::Label(label) => {
                     relm4::view! {
                         #[name = "row"]
                         adw::ActionRow {
@@ -127,26 +129,16 @@ where
                     widgets
                         .check_buttons
                         .push((*variant, check_button, handler_id));
-                    row
+
+                    root.append(&row);
                 }
-                VariantType::Entry(label, _) => {
-                    let row = adw::ActionRow::builder().title(&label).build();
+                ViewType::Entry(label, _) => {
+                    let row = adw::EntryRow::builder().title(&label).build();
                     row.add_suffix(&gtk::Entry::default());
-                    row
+                    root.append(&row);
                     // TODO: implement.
                 }
             };
-
-            root.append(&row);
         }
     }
-}
-
-pub enum VariantType<V> {
-    Label(String),
-    Entry(String, Box<dyn Fn(String) -> Option<V>>),
-}
-
-pub trait RadioButtonsListVariant: Sized {
-    fn get_variant_type(&self) -> VariantType<Self>;
 }
