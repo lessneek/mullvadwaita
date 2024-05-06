@@ -1,4 +1,4 @@
-use mullvad_types::relay_constraints::Constraint;
+use mullvad_types::constraints::Constraint;
 use talpid_types::net::TunnelType;
 use tr::tr;
 
