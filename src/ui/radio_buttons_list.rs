@@ -16,9 +16,11 @@ pub enum RadioButtonsListMsg<V> {
     SelectVariant(Option<V>),
 }
 
-#[derive(Default, Debug)]
-pub struct RadioButtonsListWidgets<V> {
-    check_buttons: Vec<(V, gtk::CheckButton, SignalHandlerId)>,
+#[derive(Debug)]
+pub struct RadioButton<V> {
+    variant: V,
+    check_button: gtk::CheckButton,
+    active_notify_handler: SignalHandlerId,
 }
 
 impl<V> Component for RadioButtonsList<V>
@@ -30,7 +32,7 @@ where
     type Output = V;
     type Init = Vec<V>;
     type Root = gtk::ListBox;
-    type Widgets = RadioButtonsListWidgets<V>;
+    type Widgets = Vec<RadioButton<V>>;
 
     fn init_root() -> Self::Root {
         gtk::ListBox::builder()
@@ -45,9 +47,7 @@ where
     ) -> ComponentParts<Self> {
         let model = RadioButtonsList { variants: init };
 
-        let mut widgets = RadioButtonsListWidgets::<V> {
-            check_buttons: vec![],
-        };
+        let mut widgets = vec![];
 
         model.render(&root, &mut widgets, sender);
 
@@ -69,18 +69,21 @@ where
             }
             RadioButtonsListMsg::SelectVariant(variant) => {
                 if let Some(variant) = variant {
-                    if let Some((_, button, handler_id)) = widgets
-                        .check_buttons
+                    if let Some(RadioButton {
+                        check_button,
+                        active_notify_handler,
+                        ..
+                    }) = widgets
                         .iter()
-                        .find(|(btn_variant, _, _)| *btn_variant == variant)
+                        .find(|RadioButton { variant: v, .. }| *v == variant)
                     {
-                        button.block_signal(handler_id);
-                        button.set_active(true);
-                        button.unblock_signal(handler_id);
+                        check_button.block_signal(active_notify_handler);
+                        check_button.set_active(true);
+                        check_button.unblock_signal(active_notify_handler);
                     }
                 } else {
-                    for (_, button, _) in widgets.check_buttons.iter() {
-                        button.set_active(false);
+                    for RadioButton { check_button, .. } in widgets.iter() {
+                        check_button.set_active(false);
                     }
                 }
             }
@@ -95,11 +98,11 @@ where
     fn render(
         &self,
         root: &gtk::ListBox,
-        widgets: &mut RadioButtonsListWidgets<V>,
+        widgets: &mut Vec<RadioButton<V>>,
         sender: ComponentSender<Self>,
     ) {
         root.remove_all();
-        widgets.check_buttons.clear();
+        widgets.clear();
 
         for variant in self.variants.iter() {
             match variant.get_view_type() {
@@ -112,13 +115,13 @@ where
 
                             #[name = "check_button"]
                             add_prefix = &gtk::CheckButton {
-                                set_group: widgets.check_buttons.first().map(|(_, button, _)| button),
+                                set_group: widgets.first().map(|r_btn| &r_btn.check_button),
 
                                 connect_active_notify[sender, variant] => move |this| {
                                     if this.is_active() {
                                         sender.input(RadioButtonsListMsg::VariantSelected(variant));
                                     }
-                                } @handler_id,
+                                } @active_notify_handler,
                             },
 
                             connect_activated[check_button] => move |_| {
@@ -126,9 +129,11 @@ where
                             },
                         }
                     }
-                    widgets
-                        .check_buttons
-                        .push((*variant, check_button, handler_id));
+                    widgets.push(RadioButton {
+                        variant: *variant,
+                        check_button,
+                        active_notify_handler,
+                    });
 
                     root.append(&row);
                 }
