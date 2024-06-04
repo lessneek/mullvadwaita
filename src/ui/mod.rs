@@ -1,10 +1,11 @@
 pub mod about;
 pub mod account;
 pub mod app;
+pub mod entry_dialog;
 pub mod logged_in_view;
 pub mod login_view;
 pub mod main_window;
 pub mod preferences;
-pub mod radio_buttons_list;
 pub mod types;
+pub mod variant_selector;
 pub mod widgets;

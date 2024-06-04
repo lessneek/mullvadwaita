@@ -1,17 +1,17 @@
 use adw::prelude::*;
 use relm4::prelude::*;
 
-use mullvad_types::{relay_constraints::RelaySettings, settings::Settings};
+use mullvad_types::{
+    relay_constraints::{RelayConstraints, RelaySettings},
+    settings::Settings,
+};
 
 use crate::{
     tr,
-    ui::{
-        app::AppInput,
-        radio_buttons_list::{RadioButtonsList, RadioButtonsListMsg},
-        types::*,
-        widgets::InfoButton,
-    },
+    ui::{app::AppInput, types::*, variant_selector::VariantSelectorMsg, widgets::InfoButton},
 };
+
+use super::variant_selector::VariantSelector;
 
 // TODO: get the nets from mullvad sources.
 static ALLOWED_LAN_NETS: [&str; 6] = [
@@ -29,7 +29,10 @@ pub struct PreferencesModel {
     window: adw::PreferencesWindow,
 
     #[no_eq]
-    tunnel_protocol_group: Controller<RadioButtonsList<TunnelProtocol>>,
+    tunnel_protocol_selector: Controller<VariantSelector<TunnelProtocol>>,
+
+    #[no_eq]
+    wireguard_port_selector: Controller<VariantSelector<WireGuardPort>>,
 
     local_network_sharing: bool,
     lockdown_mode: bool,
@@ -44,6 +47,7 @@ pub enum PreferencesMsg {
     Close,
     UpdateSettings(Settings),
     TunnelProtocolChanged(TunnelProtocol),
+    WireGuardPortChanged(WireGuardPort),
 }
 
 #[derive(Debug)]
@@ -61,6 +65,28 @@ impl PreferencesModel {
             return Some(relay_constraints.tunnel_protocol.into());
         }
         None
+    }
+
+    fn get_wireguard_port(&self) -> Option<WireGuardPort> {
+        if let Some(RelaySettings::Normal(relay_constraints)) = self.get_relay_settings() {
+            return Some(relay_constraints.wireguard_constraints.port.into());
+        }
+        None
+    }
+
+    fn update_normal_relay_constraints<F>(&mut self, sender: AsyncComponentSender<Self>, func: F)
+    where
+        F: FnOnce(&mut RelayConstraints),
+    {
+        if let Some(RelaySettings::Normal(relay_constraints)) = self.get_mut_relay_settings() {
+            func(relay_constraints);
+
+            sender
+                .output(AppInput::Set(Pref::RelaySettings(Box::new(
+                    RelaySettings::Normal(relay_constraints.clone()),
+                ))))
+                .ok();
+        }
     }
 }
 
@@ -228,9 +254,33 @@ impl SimpleAsyncComponent for PreferencesModel {
                     set_title: &tr!("Tunnel protocol"),
 
                     #[local_ref]
-                    add = tunnel_protocol_list -> gtk::ListBox {
+                    add = tunnel_protocol_selector -> gtk::ListBox {
                         add_css_class: "boxed-list"
                     }
+                },
+
+                // WireGuard port.
+                add = &adw::PreferencesGroup {
+                    set_title: &tr!("WireGuard port"),
+
+                    #[local_ref]
+                    add = wireguard_port_selector -> gtk::ListBox {
+                        add_css_class: "boxed-list"
+                    },
+
+                    #[template]
+                    #[wrap(Some)]
+                    set_header_suffix = &InfoButton {
+                        #[template_child]
+                        info_label {
+                            set_label: {
+                                &format!("{}\n\n{}",
+                                    &tr!("The automatic setting will randomly choose from the valid port ranges shown below."),
+                                    &tr!("The custom port can be any value inside the valid ranges: {}.", ALLOWED_WIRE_GUARD_PORTS)
+                                )
+                            },
+                        }
+                    },
                 }
             }
         }
@@ -241,14 +291,18 @@ impl SimpleAsyncComponent for PreferencesModel {
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
-        let tunnel_protocol_group = RadioButtonsList::<TunnelProtocol>::builder()
+        let tunnel_protocol_selector = VariantSelector::<TunnelProtocol>::builder()
             .launch(TunnelProtocol::get_all_variants())
             .forward(sender.input_sender(), PreferencesMsg::TunnelProtocolChanged);
 
+        let wireguard_port_selector = VariantSelector::<WireGuardPort>::builder()
+            .launch(WireGuardPort::get_all_variants())
+            .forward(sender.input_sender(), PreferencesMsg::WireGuardPortChanged);
+
         let model = PreferencesModel {
             window: root.clone(),
-            tunnel_protocol_group,
-
+            tunnel_protocol_selector,
+            wireguard_port_selector,
             auto_connect: false,
             enable_ipv6: false,
             local_network_sharing: false,
@@ -258,7 +312,9 @@ impl SimpleAsyncComponent for PreferencesModel {
             tracker: Default::default(),
         };
 
-        let tunnel_protocol_list = model.tunnel_protocol_group.widget();
+        let tunnel_protocol_selector = model.tunnel_protocol_selector.widget();
+        let wireguard_port_selector = model.wireguard_port_selector.widget();
+
         let widgets = view_output!();
 
         AsyncComponentParts { model, widgets }
@@ -279,23 +335,23 @@ impl SimpleAsyncComponent for PreferencesModel {
                 self.set_enable_ipv6(settings.tunnel_options.generic.enable_ipv6);
                 self.set_relay_settings(Some(settings.relay_settings));
 
-                self.tunnel_protocol_group
-                    .emit(RadioButtonsListMsg::SelectVariant(
+                self.tunnel_protocol_selector
+                    .emit(VariantSelectorMsg::SelectVariant(
                         self.get_tunnel_protocol(),
                     ));
-            }
-            PreferencesMsg::TunnelProtocolChanged(pref) => {
-                if let Some(RelaySettings::Normal(relay_constraints)) =
-                    self.get_mut_relay_settings()
-                {
-                    relay_constraints.tunnel_protocol = pref.into();
 
-                    sender
-                        .output(AppInput::Set(Pref::RelaySettings(Box::new(
-                            RelaySettings::Normal(relay_constraints.clone()),
-                        ))))
-                        .ok();
-                }
+                self.wireguard_port_selector
+                    .emit(VariantSelectorMsg::SelectVariant(self.get_wireguard_port()));
+            }
+            PreferencesMsg::TunnelProtocolChanged(tunnel_protocol) => {
+                self.update_normal_relay_constraints(sender, |relay_constraints| {
+                    relay_constraints.tunnel_protocol = tunnel_protocol.into()
+                });
+            }
+            PreferencesMsg::WireGuardPortChanged(port) => {
+                self.update_normal_relay_constraints(sender, |constraints| {
+                    constraints.wireguard_constraints.port = port.into()
+                });
             }
         }
     }

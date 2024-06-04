@@ -1,4 +1,5 @@
 mod extensions;
+mod macros;
 mod mullvad;
 mod ui;
 
