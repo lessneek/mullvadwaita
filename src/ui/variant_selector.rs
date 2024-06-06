@@ -18,16 +18,17 @@ pub trait Unique {
 
 pub trait VariantValue: Unique + Sized + Send + Clone + Debug + PartialEq + 'static {}
 
-pub fn label_variant<T: VariantValue>(label: String, value: T) -> Variant<T> {
-    Variant::Label(LabelVariant::<T> { label, value })
+pub fn label_variant<T: VariantValue>(value: T, label: String) -> Variant<T> {
+    Variant::Label(LabelVariant::<T> { value, label })
 }
 
 pub fn entry_variant<T: VariantValue + FromStr>(
-    title: String,
     value: T,
+    title: String,
+    description: String,
     converter: EntryConverter<T, String>,
 ) -> Variant<T> {
-    Variant::Entry(EntryVariant::<T>::new(title, value, converter))
+    Variant::Entry(EntryVariant::<T>::new(value, title, description, converter))
 }
 
 type ParseFn<T, Err> = Box<dyn Fn(&str) -> Result<T, Err> + Send + Sync + 'static>;
@@ -94,8 +95,8 @@ impl<T: VariantValue> Variant<T> {
 
 #[derive(Debug)]
 pub struct LabelVariant<T: VariantValue> {
-    label: String,
     value: T,
+    label: String,
 }
 
 impl<T: VariantValue> LabelVariant<T> {
@@ -115,17 +116,24 @@ impl<T: VariantValue> LabelVariant<T> {
 #[derive(Debug)]
 pub struct EntryVariant<T: VariantValue> {
     title: String,
+    full_title: String,
     value: T,
     value_as_string: String,
     converter: EntryConverter<T, String>,
 }
 
 impl<T: VariantValue> EntryVariant<T> {
-    pub fn new(title: String, value: T, converter: EntryConverter<T, String>) -> Self {
+    pub fn new(
+        value: T,
+        title: String,
+        full_title: String,
+        converter: EntryConverter<T, String>,
+    ) -> Self {
         let value_as_string = converter.to_string(&value).unwrap_or_default();
         Self {
-            title,
             value,
+            title,
+            full_title,
             value_as_string,
             converter,
         }
@@ -302,7 +310,7 @@ where
             VariantSelectorMsg::OpenEntryDialog(id) => {
                 if let Some(row) = self.get_entry_row(&id) {
                     self.entry_dialog.emit(EntryDialogMsg::Open {
-                        title: tr!("Edit value"),
+                        title: row.variant.full_title.clone(),
                         value: row.variant.get_value().clone(),
                         converter: row.variant.converter.clone(),
                         parent: root.widget_ref().clone(),

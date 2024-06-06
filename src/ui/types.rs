@@ -22,9 +22,9 @@ impl TunnelProtocol {
     pub fn get_all_variants() -> Vec<Variant<Self>> {
         use TunnelProtocol::*;
         vec![
-            label_variant(tr!("Automatic"), Automatic),
-            label_variant(tr!("WireGuard"), WireGuard),
-            label_variant(tr!("OpenVPN"), OpenVPN),
+            label_variant(Automatic, tr!("Automatic")),
+            label_variant(WireGuard, tr!("WireGuard")),
+            label_variant(OpenVPN, tr!("OpenVPN")),
         ]
     }
 }
@@ -78,12 +78,13 @@ impl WireGuardPort {
     pub fn get_all_variants() -> Vec<Variant<Self>> {
         use WireGuardPort::*;
         vec![
-            label_variant(tr!("Automatic"), Automatic),
-            label_variant(tr!("51820"), Port51820),
-            label_variant(tr!("53"), Port53),
+            label_variant(Automatic, tr!("Automatic")),
+            label_variant(Port51820, tr!("51820")),
+            label_variant(Port53, tr!("53")),
             entry_variant(
-                tr!("Custom"),
                 Custom(123),
+                tr!("Custom"),
+                tr!("Custom WireGuard port"),
                 EntryConverter::new(
                     Box::new(|s| s.parse::<WireGuardPort>()),
                     Box::new(|port| if_let_map!(port to Custom(port) => port.to_string())),

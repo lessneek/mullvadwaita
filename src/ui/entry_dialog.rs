@@ -52,8 +52,8 @@ pub struct EntryDialogInit {
 #[derive(Debug)]
 pub enum EntryDialogMsg<T: fmt::Debug + 'static> {
     Open {
-        title: String,
         value: T,
+        title: String,
         converter: EntryConverter<T, String>,
         parent: gtk::Widget,
     },
@@ -81,6 +81,8 @@ where
 
     view! {
         adw::Dialog {
+            set_width_request: 300,
+
             #[wrap(Some)]
             set_child = &gtk::Box {
                 set_orientation: gtk::Orientation::Vertical,
@@ -91,7 +93,7 @@ where
                     #[wrap(Some)]
                     set_title_widget = &adw::WindowTitle {
                         #[track = "model.changed(EntryDialog::<T>::title())"]
-                        set_title: model.get_title()
+                        set_title: model.get_title(),
                     },
                 },
 
@@ -169,8 +171,8 @@ where
 
         match message {
             EntryDialogMsg::Open {
-                title,
                 value,
+                title,
                 converter,
                 parent,
             } => {
