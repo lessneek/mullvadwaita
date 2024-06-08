@@ -1,7 +1,10 @@
 use adw::prelude::*;
+use gtk::InputPurpose;
 use relm4::prelude::*;
 use relm4::SimpleComponent;
 use std::fmt;
+
+use crate::ui::extensions::EntryExt as _;
 
 use super::variant_selector::EntryConverter;
 
@@ -19,6 +22,7 @@ pub struct EntryDialog<T: fmt::Debug> {
 
     #[do_not_track]
     converter: Option<EntryConverter<T, String>>,
+    input_purpose: InputPurpose,
 }
 
 impl<T: fmt::Debug> EntryDialog<T> {
@@ -55,6 +59,7 @@ pub enum EntryDialogMsg<T: fmt::Debug + 'static> {
         value: T,
         title: String,
         converter: EntryConverter<T, String>,
+        input_purpose: InputPurpose,
         parent: gtk::Widget,
     },
     TextChanged(String),
@@ -92,7 +97,7 @@ where
 
                     #[wrap(Some)]
                     set_title_widget = &adw::WindowTitle {
-                        #[track = "model.changed(EntryDialog::<T>::title())"]
+                        #[track = "model.changed(Self::title())"]
                         set_title: model.get_title(),
                     },
                 },
@@ -106,7 +111,7 @@ where
                         set_halign: gtk::Align::Fill,
                         set_margin_bottom: 10,
 
-                        #[track = "model.changed(EntryDialog::<T>::entry_text())"]
+                        #[track = "model.changed(Self::entry_text())"]
                         #[block_signal(connect_text_notify_handler)]
                         set_text: model.get_entry_text(),
 
@@ -126,6 +131,17 @@ where
 
                         #[track = "model.error_changed()"]
                         set_secondary_icon_tooltip_text: model.error.as_deref(),
+
+                        #[track = "model.changed(Self::input_purpose())"]
+                        set_input_purpose: model.input_purpose,
+
+                        set_max_length: 5,
+
+                        connect_delegate_insert_text => move |this, delegate, text, _position| {
+                            if this.input_purpose() == gtk::InputPurpose::Digits && text.chars().any(|c| !c.is_ascii_digit()) {
+                                delegate.stop_signal_emission_by_name("insert-text");
+                            }
+                        },
                     },
 
                     #[name = "ok_button"]
@@ -157,6 +173,7 @@ where
             value: None,
             entry_text: "".to_string(),
             error: None,
+            input_purpose: InputPurpose::FreeForm,
             converter: None,
             tracker: 0,
         };
@@ -174,12 +191,14 @@ where
                 value,
                 title,
                 converter,
+                input_purpose,
                 parent,
             } => {
                 self.set_title(title);
                 self.set_value(Some(value));
                 self.set_error(None);
                 self.converter = Some(converter);
+                self.set_input_purpose(input_purpose);
                 self.set_entry_text(self.get_value_as_text());
 
                 self.dialog.present(&parent);

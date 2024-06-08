@@ -2,6 +2,7 @@ pub mod about;
 pub mod account;
 pub mod app;
 pub mod entry_dialog;
+pub mod extensions;
 pub mod logged_in_view;
 pub mod login_view;
 pub mod main_window;

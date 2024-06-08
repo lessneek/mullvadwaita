@@ -1,6 +1,7 @@
 use adw::prelude::*;
 use core::fmt;
 use gtk::glib::SignalHandlerId;
+use gtk::InputPurpose;
 use relm4::prelude::*;
 use std::fmt::Debug;
 use std::str::FromStr;
@@ -27,8 +28,15 @@ pub fn entry_variant<T: VariantValue + FromStr>(
     title: String,
     description: String,
     converter: EntryConverter<T, String>,
+    input_purpose: InputPurpose,
 ) -> Variant<T> {
-    Variant::Entry(EntryVariant::<T>::new(value, title, description, converter))
+    Variant::Entry(EntryVariant::<T>::new(
+        value,
+        title,
+        description,
+        converter,
+        input_purpose,
+    ))
 }
 
 type ParseFn<T, Err> = Box<dyn Fn(&str) -> Result<T, Err> + Send + Sync + 'static>;
@@ -120,6 +128,7 @@ pub struct EntryVariant<T: VariantValue> {
     value: T,
     value_as_string: String,
     converter: EntryConverter<T, String>,
+    input_purpose: InputPurpose,
 }
 
 impl<T: VariantValue> EntryVariant<T> {
@@ -128,6 +137,7 @@ impl<T: VariantValue> EntryVariant<T> {
         title: String,
         full_title: String,
         converter: EntryConverter<T, String>,
+        input_purpose: InputPurpose,
     ) -> Self {
         let value_as_string = converter.to_string(&value).unwrap_or_default();
         Self {
@@ -136,6 +146,7 @@ impl<T: VariantValue> EntryVariant<T> {
             full_title,
             value_as_string,
             converter,
+            input_purpose,
         }
     }
 
@@ -313,6 +324,7 @@ where
                         title: row.variant.full_title.clone(),
                         value: row.variant.get_value().clone(),
                         converter: row.variant.converter.clone(),
+                        input_purpose: row.variant.input_purpose,
                         parent: root.widget_ref().clone(),
                     })
                 }

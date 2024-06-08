@@ -89,6 +89,7 @@ impl WireGuardPort {
                     Box::new(|s| s.parse::<WireGuardPort>()),
                     Box::new(|port| if_let_map!(port to Custom(port) => port.to_string())),
                 ),
+                gtk::InputPurpose::Digits,
             ),
         ]
     }
