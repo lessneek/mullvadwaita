@@ -110,18 +110,10 @@ where
                     gtk::Entry {
                         set_halign: gtk::Align::Fill,
                         set_margin_bottom: 10,
+                        set_max_length: 5,
 
                         #[track = "model.changed(Self::entry_text())"]
-                        #[block_signal(connect_text_notify_handler)]
                         set_text: model.get_entry_text(),
-
-                        connect_text_notify[sender] => move |this| {
-                            sender.input(EntryDialogMsg::TextChanged(this.text().into()));
-                        } @connect_text_notify_handler,
-
-                        connect_activate[sender] => move |_| {
-                            sender.input(EntryDialogMsg::Apply);
-                        },
 
                         #[track = "model.error_changed()"]
                         set_class_active[model.error.is_some()]: "error",
@@ -135,12 +127,14 @@ where
                         #[track = "model.changed(Self::input_purpose())"]
                         set_input_purpose: model.input_purpose,
 
-                        set_max_length: 5,
+                        connect_text_notify[sender] => move |this| {
+                            sender.input(EntryDialogMsg::TextChanged(this.text().into()));
+                        },
 
-                        connect_delegate_insert_text => move |this, delegate, text, _position| {
-                            if this.input_purpose() == gtk::InputPurpose::Digits && text.chars().any(|c| !c.is_ascii_digit()) {
-                                delegate.stop_signal_emission_by_name("insert-text");
-                            }
+                        enable_input_purpose_behavior: (),
+
+                        connect_activate[sender] => move |_| {
+                            sender.input(EntryDialogMsg::Apply);
                         },
                     },
 
@@ -155,8 +149,8 @@ where
 
                         connect_clicked[sender] => move |_| {
                             sender.input(EntryDialogMsg::Apply);
-                        }
-                    }
+                        },
+                    },
                 },
             },
         }
