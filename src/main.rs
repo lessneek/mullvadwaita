@@ -10,12 +10,7 @@ use relm4::RelmApp;
 use tr::tr;
 
 fn init_logger() -> Result<(), log::SetLoggerError> {
-    simple_logger::SimpleLogger::new()
-        .with_level(log::LevelFilter::Error)
-        .with_module_level("mullvadwaita", log::LevelFilter::Debug)
-        .env()
-        .with_colors(true)
-        .init()
+    env_logger::try_init()
 }
 
 fn init_gettext(
