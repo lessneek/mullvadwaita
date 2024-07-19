@@ -20,6 +20,7 @@ use futures::StreamExt;
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
+#[allow(dead_code)]
 pub enum Event {
     TunnelState(TunnelState),
     Setting(Settings),

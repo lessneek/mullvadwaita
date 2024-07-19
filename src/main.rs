@@ -36,8 +36,8 @@ fn main() -> Result<()> {
     init_gettext()?;
 
     let app = RelmApp::new("draft.mullvadwaita");
+    relm4::set_global_css(include_str!("./res/global.css"));
     relm4_icons::initialize_icons();
-    app.set_global_css(include_str!("./res/global.css"));
     app.run_async::<AppModel>(());
 
     Ok(())

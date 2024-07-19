@@ -195,7 +195,7 @@ where
                 self.set_input_purpose(input_purpose);
                 self.set_entry_text(self.get_value_as_text());
 
-                self.dialog.present(&parent);
+                self.dialog.present(Some(&parent));
             }
             EntryDialogMsg::TextChanged(text) => {
                 if let Some(converter) = &self.converter {
