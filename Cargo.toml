@@ -10,7 +10,7 @@ adw = { version = "0.7.0", optional = true, package = "libadwaita" }
 gtk = { version = "0.9", package = "gtk4" }
 relm4 = { version = "0.9", features = ["all", "libadwaita", "gnome_46"] }
 relm4-components = "0.9"
-relm4-icons = "0.9"
+relm4-icons = "0.10.0-beta.2"
 tracker = "0.2.1"
 
 futures = "0.3.30"
@@ -24,11 +24,11 @@ smart-default = "0.7.1"
 chrono = "0.4.38"
 
 # Localization
-i18n-embed = { version = "0.14.1", features = [
+i18n-embed = { version = "0.15.2", features = [
     "gettext-system",
     "desktop-requester",
 ] }
-i18n-build = "0.9.0"
+i18n-build = "0.10.0"
 lazy_static = "1"
 rust-embed = "8"
 tr = "0.1.7"
@@ -37,3 +37,6 @@ tr = "0.1.7"
 mullvad-management-interface = { path = "./mullvadvpn-app/mullvad-management-interface" }
 mullvad-types = { path = "./mullvadvpn-app/mullvad-types" }
 talpid-types = { path = "./mullvadvpn-app/talpid-types" }
+
+[build-dependencies]
+relm4-icons-build = "0.10.0-beta.1"

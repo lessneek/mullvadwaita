@@ -1,4 +1,4 @@
-use crate::{tr, ui::logged_in_view::LoggedInView};
+use crate::{icon_names, tr, ui::logged_in_view::LoggedInView};
 
 use adw::prelude::*;
 use gtk::StackTransitionType;
@@ -27,7 +27,7 @@ impl WidgetTemplate for MainWindow {
 
                     #[name = "primary_menu_button"]
                     pack_end = &gtk::MenuButton {
-                        set_icon_name: "open-menu-symbolic",
+                        set_icon_name: icon_names::MENU_LARGE,
                     },
                 },
 

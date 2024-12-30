@@ -1,3 +1,4 @@
+use crate::icon_names;
 use crate::tr;
 
 use adw::prelude::*;
@@ -122,7 +123,7 @@ impl WidgetTemplate for LoggedInView {
                 #[name = "reconnect_button"]
                 gtk::Button {
                     set_css_classes: &["opaque", "reconnect_btn"],
-                    set_icon_name: "arrow-circular-top-right-symbolic",
+                    set_icon_name: icon_names::ARROW_CIRCULAR_TOP_RIGHT,
                 },
             }
         }
@@ -141,7 +142,7 @@ impl WidgetTemplate for TunnelStateView {
             #[name = "view_stack"]
             gtk::Stack {
                 add_named[Some("connected")] = &gtk::Image {
-                    set_icon_name: Some("network-vpn-symbolic"),
+                    set_icon_name: Some(icon_names::WIRED_LOCK_CLOSED),
                     set_css_classes: &[
                         "connection_state_icon",
                         "connected",
@@ -158,7 +159,7 @@ impl WidgetTemplate for TunnelStateView {
                 },
 
                 add_named[Some("disabled")] = &gtk::Image {
-                    set_icon_name: Some("network-vpn-disabled-symbolic"),
+                    set_icon_name: Some(icon_names::WIRED_LOCK_NONE),
                     set_css_classes: &[
                         "connection_state_icon",
                         "disabled",
@@ -167,7 +168,7 @@ impl WidgetTemplate for TunnelStateView {
                 },
 
                 add_named[Some("disconnected")] = &gtk::Image {
-                    set_icon_name: Some("network-vpn-disconnected-symbolic"),
+                    set_icon_name: Some(icon_names::WIRED_LOCK_OPEN),
                     set_css_classes: &[
                         "connection_state_icon",
                         "disconnected",

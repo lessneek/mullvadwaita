@@ -7,7 +7,7 @@ use mullvad_types::{
 };
 
 use crate::{
-    tr,
+    icon_names, tr,
     ui::{app::AppInput, types::*, variant_selector::VariantSelectorMsg, widgets::InfoButton},
 };
 
@@ -111,7 +111,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                     add = &adw::SwitchRow {
                         set_title: &tr!("Auto-connect"),
                         add_prefix = &gtk::Image {
-                            set_icon_name: Some("network-vpn-symbolic"),
+                            set_icon_name: Some(icon_names::WIRED_LOCK_CLOSED),
                         },
                         set_subtitle: &tr!("Automatically connect to a server when the app launches."),
 
@@ -128,6 +128,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                     add = &adw::SwitchRow {
                         set_title: &tr!("Local network sharing"),
                         add_prefix = &gtk::Image {
+                            // TODO: replace with the `icon_names::` when the bug will be fixed.
                             set_icon_name: Some("network-workgroup-symbolic"),
                         },
 
@@ -158,7 +159,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                     add = &adw::SwitchRow {
                         set_title: &tr!("Enable IPv6"),
                         add_prefix = &gtk::Image {
-                            set_icon_name: Some("globe-alt2-symbolic"),
+                            set_icon_name: Some(icon_names::GLOBE_ALT2),
                         },
 
                         #[track = "model.changed(PreferencesModel::enable_ipv6())"]
@@ -187,7 +188,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                     add = &adw::ActionRow {
                         set_title: &tr!("Kill switch"),
                         add_prefix = &gtk::Image {
-                            set_icon_name: Some("stop-sign-large-symbolic"),
+                            set_icon_name: Some(icon_names::STOP_SIGN_LARGE),
                         },
                         set_activatable: true,
 
@@ -223,7 +224,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                     add = &adw::SwitchRow {
                         set_title: &tr!("Lockdown mode"),
                         add_prefix = &gtk::Image {
-                            set_icon_name: Some("security-high-symbolic"),
+                            set_icon_name: Some(icon_names::SHIELD_FULL),
                         },
 
                         #[track = "model.changed(PreferencesModel::lockdown_mode())"]

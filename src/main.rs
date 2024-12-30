@@ -9,6 +9,10 @@ use anyhow::Result;
 use relm4::RelmApp;
 use tr::tr;
 
+mod icon_names {
+    include!(concat!(env!("OUT_DIR"), "/icon_names.rs"));
+}
+
 fn init_logger() -> Result<(), log::SetLoggerError> {
     env_logger::try_init()
 }
@@ -37,7 +41,9 @@ fn main() -> Result<()> {
 
     let app = RelmApp::new("draft.mullvadwaita");
     relm4::set_global_css(include_str!("./res/global.css"));
-    relm4_icons::initialize_icons();
+
+    relm4_icons::initialize_icons(icon_names::GRESOURCE_BYTES, icon_names::RESOURCE_PREFIX);
+
     app.run_async::<AppModel>(());
 
     Ok(())

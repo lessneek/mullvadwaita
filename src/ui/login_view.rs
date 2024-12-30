@@ -1,3 +1,4 @@
+use crate::icon_names;
 use crate::tr;
 
 use adw::prelude::*;
@@ -68,7 +69,7 @@ impl WidgetTemplate for LoginView {
 
                         #[name = "login_button"]
                         add_named[Some("default")] = &gtk::Button {
-                            set_icon_name: "arrow2-right-symbolic",
+                            set_icon_name: icon_names::ARROW2_RIGHT,
                             set_valign: gtk::Align::Center,
                             set_css_classes: &["opaque", "login_btn"],
                             set_receives_default: true,
@@ -87,7 +88,7 @@ impl WidgetTemplate for LoginView {
 
                     #[name = "clear_account_history_button"]
                     add_suffix = &gtk::Button {
-                        set_icon_name: "cross-large-circle-filled-symbolic",
+                        set_icon_name: icon_names::CROSS_LARGE_CIRCLE_FILLED,
                         set_valign: gtk::Align::Center,
                         set_css_classes: &["flat"],
                     },

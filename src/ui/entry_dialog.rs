@@ -4,6 +4,7 @@ use relm4::prelude::*;
 use relm4::SimpleComponent;
 use std::fmt;
 
+use crate::icon_names;
 use crate::ui::extensions::EntryExt as _;
 
 use super::variant_selector::EntryConverter;
@@ -119,7 +120,7 @@ where
                         set_class_active[model.error.is_some()]: "error",
 
                         #[track = "model.error_changed()"]
-                        set_secondary_icon_name: model.error.as_ref().map(|_| "issue-symbolic"),
+                        set_secondary_icon_name: model.error.as_ref().map(|_| icon_names::ISSUE),
 
                         #[track = "model.error_changed()"]
                         set_secondary_icon_tooltip_text: model.error.as_deref(),

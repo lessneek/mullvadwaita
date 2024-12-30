@@ -1,3 +1,4 @@
+use crate::icon_names;
 use adw::prelude::*;
 use chrono::Local;
 use mullvad_types::{account::AccountData, device::AccountAndDevice};
@@ -81,7 +82,7 @@ impl SimpleAsyncComponent for AccountModel {
                         set_editable: false,
 
                         add_suffix = &gtk::Button {
-                            set_icon_name: "copy-symbolic",
+                            set_icon_name: icon_names::COPY,
                             set_valign: gtk::Align::Center,
                             set_css_classes: &["flat", "image-button"],
                             connect_clicked[root, account_number] => move |_| {

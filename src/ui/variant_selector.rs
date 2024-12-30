@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::{collections::BTreeMap, sync::Arc};
 
-use crate::{if_let_map, tr};
+use crate::{icon_names, if_let_map, tr};
 
 use super::entry_dialog::{EntryDialog, EntryDialogInit, EntryDialogMsg, EntryDialogOutput};
 
@@ -430,7 +430,7 @@ impl<T: VariantValue> VariantSelector<T> {
                             },
 
                             add_suffix = &gtk::Button {
-                                set_icon_name: "edit-symbolic",
+                                set_icon_name: icon_names::EDIT,
                                 set_valign: gtk::Align::Center,
                                 set_css_classes: &["flat"],
 
