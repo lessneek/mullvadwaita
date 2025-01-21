@@ -20,7 +20,7 @@ use relm4::prelude::*;
 
 use adw::prelude::*;
 
-use mullvad_types::account::{AccountData, AccountToken};
+use mullvad_types::account::{AccountData, AccountNumber};
 use mullvad_types::device::{AccountAndDevice, DeviceState};
 use mullvad_types::states::TunnelState;
 use talpid_types::tunnel::ActionAfterDisconnect;
@@ -35,7 +35,7 @@ pub enum AppInput {
     Preferences,
     About,
     Set(Pref),
-    Login(AccountToken),
+    Login(AccountNumber),
     Logout,
     CreateAccount,
     ClearAccountHistory,
@@ -58,7 +58,7 @@ pub struct AppModel {
     #[no_eq]
     tunnel_state: Option<TunnelState>,
     account_data: Option<AccountData>,
-    account_history: Option<AccountToken>,
+    account_history: Option<AccountNumber>,
 
     lockdown_mode: bool,
 
@@ -186,7 +186,7 @@ impl AppModel {
     fn get_account_token(&self) -> Option<String> {
         self.state
             .get_account_and_device()
-            .map(|acc| acc.account_token.clone())
+            .map(|acc| acc.account_number.clone())
     }
 
     fn fetch_account_data(&self, sender: AsyncComponentSender<Self>) {

@@ -143,7 +143,7 @@ impl SimpleAsyncComponent for AccountModel {
             AccountMsg::Close => self.window.set_visible(false),
             AccountMsg::UpdateAccountAndDevice(account_and_device) => {
                 self.set_device_name(account_and_device.device.pretty_name());
-                self.set_account_number(account_and_device.account_token);
+                self.set_account_number(account_and_device.account_number);
             }
             AccountMsg::UpdateAccountData(account_data) => {
                 let paid_until = account_data.expiry.with_timezone(Local::now().offset());

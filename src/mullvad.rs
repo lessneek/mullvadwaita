@@ -5,7 +5,7 @@ use anyhow::Result;
 use mullvad_management_interface::{client::DaemonEvent, MullvadProxyClient};
 use mullvad_types::{
     access_method::AccessMethodSetting,
-    account::{AccountData, AccountToken},
+    account::{AccountData, AccountNumber},
     device::{DeviceEvent, DeviceEventCause, DeviceState, RemoveDeviceEvent},
     relay_constraints::RelaySettings,
     relay_list::RelayList,
@@ -124,7 +124,7 @@ impl DaemonConnector {
         Ok(client)
     }
 
-    pub async fn login_account(&mut self, account: AccountToken) -> Result<()> {
+    pub async fn login_account(&mut self, account: AccountNumber) -> Result<()> {
         Ok(self.get_client().await?.login_account(account).await?)
     }
 
@@ -180,7 +180,7 @@ impl DaemonConnector {
         Ok(self.get_client().await?.get_device().await?)
     }
 
-    pub async fn get_account_history(&mut self) -> Result<Option<AccountToken>> {
+    pub async fn get_account_history(&mut self) -> Result<Option<AccountNumber>> {
         Ok(self.get_client().await?.get_account_history().await?)
     }
 
@@ -188,7 +188,7 @@ impl DaemonConnector {
         Ok(self.get_client().await?.clear_account_history().await?)
     }
 
-    pub async fn create_new_account(&mut self) -> Result<AccountToken> {
+    pub async fn create_new_account(&mut self) -> Result<AccountNumber> {
         Ok(self.get_client().await?.create_new_account().await?)
     }
 

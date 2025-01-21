@@ -128,8 +128,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                     add = &adw::SwitchRow {
                         set_title: &tr!("Local network sharing"),
                         add_prefix = &gtk::Image {
-                            // TODO: replace with the `icon_names::` when the bug will be fixed.
-                            set_icon_name: Some("network-workgroup-symbolic"),
+                            set_icon_name: Some(icon_names::NETWORK_WORKGROUP),
                         },
 
                         #[track = "model.changed(PreferencesModel::local_network_sharing())"]
