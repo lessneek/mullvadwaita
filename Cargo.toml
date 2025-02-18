@@ -11,27 +11,27 @@ gtk = { version = "0.9", package = "gtk4" }
 relm4 = { version = "0.9", features = ["all", "libadwaita", "gnome_46"] }
 relm4-components = "0.9"
 relm4-icons = "0.10.0-beta.2"
-tracker = "0.2.1"
+tracker = "0.2"
 
-futures = "0.3.30"
-futures-util = "0.3.30"
+futures = "0.3"
+futures-util = "0.3"
 
-tokio = { version = "1.38.1", features = ["rt-multi-thread", "full"] }
-log = { version = "0.4.22", features = ["std", "max_level_trace"] }
+tokio = { version = "1", features = ["rt-multi-thread", "full"] }
+log = { version = "0.4", features = ["std", "max_level_trace"] }
 env_logger = "0.11"
-anyhow = "1.0.86"
-smart-default = "0.7.1"
-chrono = "0.4.38"
+anyhow = "1"
+smart-default = "0.7"
+chrono = "0.4"
 
 # Localization
-i18n-embed = { version = "0.15.2", features = [
+i18n-embed = { version = "0.15", features = [
     "gettext-system",
     "desktop-requester",
 ] }
-i18n-build = "0.10.0"
+i18n-build = "0.10"
 lazy_static = "1"
 rust-embed = "8"
-tr = "0.1.7"
+tr = "0.1"
 
 # mullvad
 mullvad-management-interface = { path = "./mullvadvpn-app/mullvad-management-interface" }
