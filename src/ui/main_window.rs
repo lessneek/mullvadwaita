@@ -11,7 +11,7 @@ impl WidgetTemplate for MainWindow {
     view! {
         #[name = "main_window"]
         adw::Window {
-            set_default_size: (300, 600),
+            set_default_size: (340, 450),
 
             gtk::Box {
                 set_orientation: gtk::Orientation::Vertical,

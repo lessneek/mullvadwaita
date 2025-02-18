@@ -97,7 +97,7 @@ impl WidgetTemplate for LoggedInView {
                 set_halign: gtk::Align::Center,
                 set_valign: gtk::Align::End,
                 set_vexpand: true,
-                set_width_request: 300,
+                set_width_request: 320,
 
                 #[name = "secure_my_connection_button"]
                 gtk::Button {
