@@ -145,7 +145,7 @@ impl AppModel {
     fn is_connected(&self) -> bool {
         self.get_tunnel_state()
             .as_ref()
-            .map_or(false, |ts| ts.is_connected())
+            .is_some_and(|ts| ts.is_connected())
     }
 
     fn is_connecting_or_reconnecting(&self) -> bool {
