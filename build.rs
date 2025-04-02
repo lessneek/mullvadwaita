@@ -28,6 +28,8 @@ fn main() {
             "edit",
             "background-app-ghost",
             "issue",
+            "function-third-order-horizontal",
+            "warning-outline",
         ],
     );
 }

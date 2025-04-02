@@ -48,6 +48,7 @@ pub enum PreferencesMsg {
     UpdateSettings(Settings),
     TunnelProtocolChanged(TunnelProtocol),
     WireGuardPortChanged(WireGuardPort),
+    SetMultihop(bool),
 }
 
 #[derive(Debug)]
@@ -60,16 +61,9 @@ pub enum Pref {
 }
 
 impl PreferencesModel {
-    fn get_tunnel_protocol(&self) -> Option<TunnelProtocol> {
+    fn get_normal_relay_constraints(&self) -> Option<&RelayConstraints> {
         if let Some(RelaySettings::Normal(relay_constraints)) = self.get_relay_settings() {
-            return Some(relay_constraints.tunnel_protocol.into());
-        }
-        None
-    }
-
-    fn get_wireguard_port(&self) -> Option<WireGuardPort> {
-        if let Some(RelaySettings::Normal(relay_constraints)) = self.get_relay_settings() {
-            return Some(relay_constraints.wireguard_constraints.port.into());
+            return Some(relay_constraints);
         }
         None
     }
@@ -87,6 +81,31 @@ impl PreferencesModel {
                 ))))
                 .ok();
         }
+    }
+
+    fn get_tunnel_protocol(&self) -> Option<TunnelProtocol> {
+        self.get_normal_relay_constraints()
+            .map(|relay_constraints| relay_constraints.tunnel_protocol.into())
+    }
+
+    fn get_wireguard_port(&self) -> Option<WireGuardPort> {
+        self.get_normal_relay_constraints()
+            .map(|relay_constraints| relay_constraints.wireguard_constraints.port.into())
+    }
+
+    fn get_multihop(&self) -> bool {
+        self.get_normal_relay_constraints()
+            .map(|relay_constraints| relay_constraints.wireguard_constraints.multihop())
+            .unwrap_or_default()
+    }
+
+    fn is_multihop_allowed(&self) -> bool {
+        self.get_tunnel_protocol()
+            .map(|value| match value {
+                TunnelProtocol::Automatic | TunnelProtocol::WireGuard => true,
+                TunnelProtocol::OpenVPN => false,
+            })
+            .unwrap_or_default()
     }
 }
 
@@ -247,6 +266,69 @@ impl SimpleAsyncComponent for PreferencesModel {
                             }
                         },
                     },
+
+                    // Multihop.
+                    add = &adw::ActionRow {
+                        set_title: &tr!("Multihop"),
+                        set_activatable: true,
+
+                        connect_activated[multihop_not_available_info_button, multihop_switch] => move |_| {
+                            if multihop_switch.get_sensitive() {
+                                multihop_switch.activate();
+                            } else {
+                                multihop_not_available_info_button.info_menu_button.set_active(true);
+                            }
+                        },
+
+                        add_prefix = &gtk::Image {
+                            set_icon_name: Some(icon_names::FUNCTION_THIRD_ORDER_HORIZONTAL),
+                        },
+
+                        #[template]
+                        #[name = "multihop_not_available_info_button"]
+                        add_suffix = &InfoButton {
+                            #[template_child]
+                            info_menu_button {
+                                set_icon_name: icon_names::WARNING_OUTLINE,
+                            },
+
+                            #[template_child]
+                            info_label {
+                                set_label: {
+                                    &tr!("Switch Tunnel protocol to “Wireguard” or “Automatic” to make Multihop available.")
+                                },
+                            },
+
+                            #[track = "model.changed(PreferencesModel::relay_settings())"]
+                            set_visible: !model.is_multihop_allowed(),
+                        },
+
+                        #[template]
+                        add_suffix = &InfoButton {
+                            #[template_child]
+                            info_label {
+                                set_label: {
+                                    &tr!("Multihop routes your traffic into one WireGuard server and out another, making it harder to trace. This results in increased latency but increases anonymity online.")
+                                },
+                            },
+                        },
+
+                        #[name = "multihop_switch"]
+                        add_suffix = &gtk::Switch {
+                            set_valign: gtk::Align::Center,
+
+                            #[track = "model.changed(PreferencesModel::relay_settings())"]
+                            #[block_signal(multihop_active_notify_handler)]
+                            set_active: model.get_multihop(),
+
+                            connect_active_notify[sender] => move |this| {
+                                sender.input(PreferencesMsg::SetMultihop(this.is_active()));
+                            } @multihop_active_notify_handler,
+
+                            #[track = "model.changed(PreferencesModel::relay_settings())"]
+                            set_sensitive: model.is_multihop_allowed(),
+                        },
+                    },
                 },
 
                 // Tunnel protocol.
@@ -349,8 +431,13 @@ impl SimpleAsyncComponent for PreferencesModel {
                 });
             }
             PreferencesMsg::WireGuardPortChanged(port) => {
-                self.update_normal_relay_constraints(sender, |constraints| {
-                    constraints.wireguard_constraints.port = port.into()
+                self.update_normal_relay_constraints(sender, |relay_constraints| {
+                    relay_constraints.wireguard_constraints.port = port.into()
+                });
+            }
+            PreferencesMsg::SetMultihop(value) => {
+                self.update_normal_relay_constraints(sender, |relay_constraints| {
+                    relay_constraints.wireguard_constraints.use_multihop(value)
                 });
             }
         }
