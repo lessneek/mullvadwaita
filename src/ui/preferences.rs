@@ -144,19 +144,18 @@ impl SimpleAsyncComponent for PreferencesModel {
                     },
 
                     // Local network sharing.
-                    add = &adw::SwitchRow {
+                    add = &adw::ActionRow {
                         set_title: &tr!("Local network sharing"),
                         add_prefix = &gtk::Image {
                             set_icon_name: Some(icon_names::NETWORK_WORKGROUP),
                         },
+                        set_activatable: true,
 
-                        #[track = "model.changed(PreferencesModel::local_network_sharing())"]
-                        #[block_signal(local_network_sharing_active_notify_handler)]
-                        set_active: model.local_network_sharing,
-
-                        connect_active_notify[sender] => move |this| {
-                            let _ = sender.output(AppInput::Set(Pref::LocalNetworkSharing(this.is_active())));
-                        } @local_network_sharing_active_notify_handler,
+                        connect_activated[local_network_sharing_switch] => move |_| {
+                            if local_network_sharing_switch.get_sensitive() {
+                                local_network_sharing_switch.activate();
+                            }
+                        },
 
                         #[template]
                         add_suffix = &InfoButton {
@@ -171,22 +170,34 @@ impl SimpleAsyncComponent for PreferencesModel {
                                 },
                             }
                         },
+
+                        #[name = "local_network_sharing_switch"]
+                        add_suffix = &gtk::Switch {
+                            set_valign: gtk::Align::Center,
+
+                            #[track = "model.changed(PreferencesModel::local_network_sharing())"]
+                            #[block_signal(local_network_sharing_active_notify_handler)]
+                            set_active: model.local_network_sharing,
+
+                            connect_active_notify[sender] => move |this| {
+                                let _ = sender.output(AppInput::Set(Pref::LocalNetworkSharing(this.is_active())));
+                            } @local_network_sharing_active_notify_handler,
+                        },
                     },
 
                     // Enable IPv6.
-                    add = &adw::SwitchRow {
+                    add = &adw::ActionRow {
                         set_title: &tr!("Enable IPv6"),
                         add_prefix = &gtk::Image {
                             set_icon_name: Some(icon_names::GLOBE_ALT2),
                         },
+                        set_activatable: true,
 
-                        #[track = "model.changed(PreferencesModel::enable_ipv6())"]
-                        #[block_signal(enable_ipv6_active_notify_handler)]
-                        set_active: model.enable_ipv6,
-
-                        connect_active_notify[sender] => move |this| {
-                            let _ = sender.output(AppInput::Set(Pref::EnableIPv6(this.is_active())));
-                        } @enable_ipv6_active_notify_handler,
+                        connect_activated[enable_ipv6_switch] => move |_| {
+                            if enable_ipv6_switch.get_sensitive() {
+                                enable_ipv6_switch.activate();
+                            }
+                        },
 
                         #[template]
                         add_suffix = &InfoButton {
@@ -199,6 +210,19 @@ impl SimpleAsyncComponent for PreferencesModel {
                                     )
                                 },
                             }
+                        },
+
+                        #[name = "enable_ipv6_switch"]
+                        add_suffix = &gtk::Switch {
+                            set_valign: gtk::Align::Center,
+
+                            #[track = "model.changed(PreferencesModel::enable_ipv6())"]
+                            #[block_signal(enable_ipv6_active_notify_handler)]
+                            set_active: model.enable_ipv6,
+
+                            connect_active_notify[sender] => move |this| {
+                                let _ = sender.output(AppInput::Set(Pref::EnableIPv6(this.is_active())));
+                            } @enable_ipv6_active_notify_handler,
                         },
                     },
 
@@ -214,44 +238,42 @@ impl SimpleAsyncComponent for PreferencesModel {
                             kill_switch_info_button.info_menu_button.set_active(true);
                         },
 
-                        add_suffix = &gtk::Box {
-                            gtk::Switch {
-                                set_valign: gtk::Align::Center,
-                                set_margin_end: 7,
-                                set_active: true,
-                                set_sensitive: false,
-                            },
-
-                            #[template]
-                            #[name = "kill_switch_info_button"]
-                            InfoButton {
+                        #[template]
+                        #[name = "kill_switch_info_button"]
+                        add_suffix =
+                            &InfoButton {
                                 #[template_child]
                                 info_label {
                                     set_label: {
                                         &format!("{}\n\n{}",
-                                            &tr!("This built-in feature prevents your traffic from leaking outside of the VPN tunnel if your network suddenly stops working or if the tunnel fails, it does this by blocking your traffic until your connection is reestablished."),
-                                            &tr!("The difference between the Kill Switch and Lockdown Mode is that the Kill Switch will prevent any leaks from happening during automatic tunnel reconnects, software crashes and similar accidents. With Lockdown Mode enabled, you must be connected to a Mullvad VPN server to be able to reach the internet. Manually disconnecting or quitting the app will block your connection.")
-                                        )
-                                    },
-                                }
-                            },
-                        }
+                                        &tr!("This built-in feature prevents your traffic from leaking outside of the VPN tunnel if your network suddenly stops working or if the tunnel fails, it does this by blocking your traffic until your connection is reestablished."),
+                                        &tr!("The difference between the Kill Switch and Lockdown Mode is that the Kill Switch will prevent any leaks from happening during automatic tunnel reconnects, software crashes and similar accidents. With Lockdown Mode enabled, you must be connected to a Mullvad VPN server to be able to reach the internet. Manually disconnecting or quitting the app will block your connection.")
+                                    )
+                                },
+                            }
+                        },
+
+                        add_suffix = &gtk::Switch {
+                            set_valign: gtk::Align::Center,
+                            set_active: true,
+                            set_sensitive: false,
+                        },
                     },
 
                     // Lockdown mode.
-                    add = &adw::SwitchRow {
+                    add = &adw::ActionRow {
                         set_title: &tr!("Lockdown mode"),
+                        set_activatable: true,
+
                         add_prefix = &gtk::Image {
                             set_icon_name: Some(icon_names::SHIELD_FULL),
                         },
 
-                        #[track = "model.changed(PreferencesModel::lockdown_mode())"]
-                        #[block_signal(lockdown_mode_active_notify_handler)]
-                        set_active: model.lockdown_mode,
-
-                        connect_active_notify[sender] => move |this| {
-                            let _ = sender.output(AppInput::Set(Pref::LockdownMode(this.is_active())));
-                        } @lockdown_mode_active_notify_handler,
+                        connect_activated[lockdown_mode_switch] => move |_| {
+                            if lockdown_mode_switch.get_sensitive() {
+                                lockdown_mode_switch.activate();
+                            }
+                        },
 
                         #[template]
                         add_suffix = &InfoButton {
@@ -264,6 +286,19 @@ impl SimpleAsyncComponent for PreferencesModel {
                                     )
                                 },
                             }
+                        },
+
+                        #[name = "lockdown_mode_switch"]
+                        add_suffix = &gtk::Switch {
+                            set_valign: gtk::Align::Center,
+
+                            #[track = "model.changed(PreferencesModel::lockdown_mode())"]
+                            #[block_signal(lockdown_mode_active_notify_handler)]
+                            set_active: model.lockdown_mode,
+
+                            connect_active_notify[sender] => move |this| {
+                                let _ = sender.output(AppInput::Set(Pref::LockdownMode(this.is_active())));
+                            } @lockdown_mode_active_notify_handler,
                         },
                     },
 
