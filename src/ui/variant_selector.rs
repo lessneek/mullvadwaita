@@ -7,6 +7,7 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use std::{collections::BTreeMap, sync::Arc};
 
+use crate::ui::widgets::InfoButton;
 use crate::{icon_names, if_let_map, tr};
 
 use super::entry_dialog::{EntryDialog, EntryDialogInit, EntryDialogMsg, EntryDialogOutput};
@@ -92,6 +93,13 @@ impl<T: VariantValue> Variant<T> {
         }
     }
 
+    pub fn set_value(&mut self, new_value: T) {
+        match self {
+            Variant::Label(variant) => variant.set_value(new_value),
+            Variant::Entry(variant) => variant.set_value(new_value),
+        }
+    }
+
     pub fn as_entry_variant(&self) -> Option<&EntryVariant<T>> {
         if_let_map!(self to Variant::<T>::Entry(variant) => variant)
     }
@@ -118,6 +126,12 @@ impl<T: VariantValue> LabelVariant<T> {
 
     pub fn get_value(&self) -> &T {
         &self.value
+    }
+
+    pub fn set_value(&mut self, new_value: T) {
+        if new_value.get_id() == self.get_id() {
+            self.value = new_value;
+        }
     }
 }
 
@@ -189,71 +203,66 @@ pub struct VariantSelector<T: VariantValue> {
 pub enum VariantSelectorMsg<T: VariantValue> {
     VariantSelected(T::Id),
     SelectVariant(Option<T>),
+    SetVariantMode(T::Id, VariantMode),
     OpenEntryDialog(T::Id),
     EntryDialogOutput(EntryDialogOutput<T>),
 }
 
 #[derive(Debug)]
-pub enum VariantRow<T: VariantValue> {
-    Label(LabelVariantRow<T>),
-    Entry(EntryVariantRow<T>),
-}
-
-#[derive(Debug)]
-pub struct LabelVariantRow<T: VariantValue> {
-    variant: LabelVariant<T>,
-    check_button: gtk::CheckButton,
-    check_button_active_notify_handler: SignalHandlerId,
-}
-
-impl<T: VariantValue> LabelVariantRow<T> {
-    fn set_active(&mut self, value: bool) {
-        self.check_button
-            .block_signal(&self.check_button_active_notify_handler);
-        self.check_button.set_active(value);
-        self.check_button
-            .unblock_signal(&self.check_button_active_notify_handler);
-    }
-}
-
-#[derive(Debug)]
-pub struct EntryVariantRow<T: VariantValue> {
-    variant: EntryVariant<T>,
+pub struct VariantRow<T: VariantValue> {
+    variant: Variant<T>,
     check_button: gtk::CheckButton,
     check_button_active_notify_handler: SignalHandlerId,
     action_row: adw::ActionRow,
+    info_button: InfoButton,
 }
 
-impl<T: VariantValue> EntryVariantRow<T> {
-    fn set_active(&mut self, value: bool) {
-        self.check_button
-            .block_signal(&self.check_button_active_notify_handler);
-        self.check_button.set_active(value);
-        self.check_button
-            .unblock_signal(&self.check_button_active_notify_handler);
-    }
-
-    fn set_value(&mut self, new_value: T) {
-        self.variant.set_value(new_value);
-        let value_as_str = self.variant.get_value_as_str();
-        self.action_row.set_subtitle(value_as_str);
+impl<T: VariantValue> AsRef<Variant<T>> for VariantRow<T> {
+    fn as_ref(&self) -> &Variant<T> {
+        &self.variant
     }
 }
 
 impl<T: VariantValue> VariantRow<T> {
     fn set_active(&mut self, value: bool) {
-        match self {
-            VariantRow::Label(row) => row.set_active(value),
-            VariantRow::Entry(row) => row.set_active(value),
-        }
+        self.check_button
+            .block_signal(&self.check_button_active_notify_handler);
+        self.check_button.set_active(value);
+        self.check_button
+            .unblock_signal(&self.check_button_active_notify_handler);
     }
 
-    fn get_value(&self) -> &T {
-        match self {
-            VariantRow::Label(row) => row.variant.get_value(),
-            VariantRow::Entry(row) => row.variant.get_value(),
+    pub fn get_value(&self) -> &T {
+        self.variant.get_value()
+    }
+
+    fn set_value(&mut self, new_value: T) {
+        self.variant.set_value(new_value);
+        if let Variant::Entry(variant) = &self.variant {
+            self.action_row.set_subtitle(variant.get_value_as_str());
+        };
+    }
+
+    fn set_mode(&mut self, mode: VariantMode) {
+        let (enabled, info) = match mode {
+            VariantMode::Enabled => (true, None),
+            VariantMode::DisabledWithInfo(info) => (false, Some(info)),
+        };
+        self.check_button.set_sensitive(enabled);
+
+        if let Some(info) = info {
+            self.info_button.info_label.set_label(&info);
+            self.info_button.set_visible(true);
+        } else {
+            self.info_button.set_visible(false);
         }
     }
+}
+
+#[derive(Debug)]
+pub enum VariantMode {
+    Enabled,
+    DisabledWithInfo(String),
 }
 
 impl<T> Component for VariantSelector<T>
@@ -305,11 +314,7 @@ where
                 if let Some(new_value) = new_value {
                     let id = new_value.get_id();
                     if let Some(row) = self.variant_rows.get_mut(&id) {
-                        if let VariantRow::Entry(row) = row {
-                            row.variant.set_value(new_value.clone());
-                            row.action_row.set_subtitle(row.variant.get_value_as_str());
-                        }
-
+                        row.set_value(new_value);
                         row.set_active(true);
                     }
                 } else {
@@ -318,20 +323,26 @@ where
                     }
                 }
             }
+            VariantSelectorMsg::SetVariantMode(id, mode) => {
+                if let Some(row) = self.variant_rows.get_mut(&id) {
+                    row.set_mode(mode);
+                }
+            }
             VariantSelectorMsg::OpenEntryDialog(id) => {
-                if let Some(row) = self.get_entry_row(&id) {
+                if let Some(variant) = self.get_entry_variant(&id) {
                     self.entry_dialog.emit(EntryDialogMsg::Open {
-                        title: row.variant.full_title.clone(),
-                        value: row.variant.get_value().clone(),
-                        converter: row.variant.converter.clone(),
-                        input_purpose: row.variant.input_purpose,
+                        title: variant.full_title.clone(),
+                        value: variant.get_value().clone(),
+                        converter: variant.converter.clone(),
+                        input_purpose: variant.input_purpose,
                         parent: root.widget_ref().clone(),
                     })
                 }
             }
             VariantSelectorMsg::EntryDialogOutput(output) => {
                 let id = output.value.get_id();
-                if let Some(row) = self.get_entry_row_mut(&output.value.get_id()) {
+
+                if let Some(row) = self.variant_rows.get_mut(&id) {
                     row.set_value(output.value);
                     if row.check_button.is_active() {
                         sender.input(VariantSelectorMsg::VariantSelected(id));
@@ -343,16 +354,11 @@ where
 }
 
 impl<T: VariantValue> VariantSelector<T> {
-    fn get_entry_row(&self, id: &T::Id) -> Option<&EntryVariantRow<T>> {
+    fn get_entry_variant(&self, id: &T::Id) -> Option<&EntryVariant<T>> {
         self.variant_rows
             .get(id)
-            .and_then(|row| if_let_map!(row to VariantRow::Entry(row) => row))
-    }
-
-    fn get_entry_row_mut(&mut self, id: &T::Id) -> Option<&mut EntryVariantRow<T>> {
-        self.variant_rows
-            .get_mut(id)
-            .and_then(|row| if_let_map!(row to VariantRow::Entry(row) => row))
+            .map(|row| &row.variant)
+            .and_then(|variant| if_let_map!(variant to Variant::Entry(variant) => variant))
     }
 
     fn render(
@@ -368,66 +374,62 @@ impl<T: VariantValue> VariantSelector<T> {
 
         for variant in variants.into_iter() {
             let id = variant.get_id();
-            match variant {
+
+            relm4::view! {
+                #[name = "action_row"]
+                adw::ActionRow {
+                    set_activatable: true,
+
+                    #[name = "check_button"]
+                    add_prefix = &gtk::CheckButton {
+                        set_group: group_check_button.as_ref(),
+
+                        connect_active_notify[sender, id] => move |this| {
+                            if this.is_active() {
+                                sender.input(VariantSelectorMsg::VariantSelected(id));
+                            }
+                        } @check_button_active_notify_handler,
+                    },
+
+                    connect_activated[check_button, info_button] => move |_| {
+                        if check_button.get_sensitive() {
+                            check_button.emit_activate();
+                        } else {
+                            info_button.emit_activate();
+                        }
+                    },
+
+                    #[template]
+                    #[name = "info_button"]
+                    add_suffix = &InfoButton {
+                        #[template_child]
+                        info_menu_button {
+                            set_icon_name: icon_names::WARNING_OUTLINE,
+                        },
+
+                        set_visible: false,
+                    },
+                }
+            }
+
+            group_check_button.get_or_insert(check_button.clone());
+
+            match &variant {
                 Variant::Label(variant) => {
                     relm4::view! {
-                        #[name = "action_row"]
-                        adw::ActionRow {
+                        #[local]
+                        action_row -> adw::ActionRow {
                             set_title: variant.get_label(),
-                            set_activatable: true,
-
-                            #[name = "check_button"]
-                            add_prefix = &gtk::CheckButton {
-                                set_group: group_check_button.as_ref(),
-
-                                connect_active_notify[sender, id] => move |this| {
-                                    if this.is_active() {
-                                        sender.input(VariantSelectorMsg::VariantSelected(id));
-                                    }
-                                } @check_button_active_notify_handler,
-                            },
-
-                            connect_activated[check_button] => move |_| {
-                                check_button.emit_activate();
-                            },
                         }
                     }
-                    group_check_button.get_or_insert(check_button.clone());
-
-                    self.variant_rows.insert(
-                        id,
-                        VariantRow::Label(LabelVariantRow {
-                            variant,
-                            check_button,
-                            check_button_active_notify_handler,
-                        }),
-                    );
-
-                    root.append(&action_row);
                 }
                 Variant::Entry(variant) => {
                     relm4::view! {
-                        #[name = "action_row"]
-                        adw::ActionRow {
+                        #[local]
+                        action_row -> adw::ActionRow {
                             set_title: variant.get_title(),
                             set_subtitle: variant.get_value_as_str(),
-                            set_activatable: true,
                             add_css_class: "property",
-
-                            #[name = "check_button"]
-                            add_prefix = &gtk::CheckButton {
-                                set_group: group_check_button.as_ref(),
-
-                                connect_active_notify[sender, id] => move |this| {
-                                    if this.is_active() {
-                                        sender.input(VariantSelectorMsg::VariantSelected(id));
-                                    }
-                                } @check_button_active_notify_handler,
-                            },
-
-                            connect_activated[check_button] => move |_| {
-                                check_button.emit_activate();
-                            },
 
                             add_suffix = &gtk::Button {
                                 set_icon_name: icon_names::EDIT,
@@ -440,21 +442,21 @@ impl<T: VariantValue> VariantSelector<T> {
                             }
                         }
                     }
-                    group_check_button.get_or_insert(check_button.clone());
-
-                    self.variant_rows.insert(
-                        id,
-                        VariantRow::Entry(EntryVariantRow {
-                            variant,
-                            check_button,
-                            check_button_active_notify_handler,
-                            action_row: action_row.clone(),
-                        }),
-                    );
-
-                    root.append(&action_row);
                 }
-            };
+            }
+
+            root.append(&action_row);
+
+            self.variant_rows.insert(
+                id,
+                VariantRow {
+                    variant,
+                    check_button,
+                    check_button_active_notify_handler,
+                    action_row,
+                    info_button,
+                },
+            );
         }
     }
 }

@@ -8,7 +8,12 @@ use mullvad_types::{
 
 use crate::{
     icon_names, tr,
-    ui::{app::AppInput, types::*, variant_selector::VariantSelectorMsg, widgets::InfoButton},
+    ui::{
+        app::AppInput,
+        types::*,
+        variant_selector::{Unique, VariantMode, VariantSelectorMsg},
+        widgets::InfoButton,
+    },
 };
 
 use super::variant_selector::VariantSelector;
@@ -38,7 +43,8 @@ pub struct PreferencesModel {
     lockdown_mode: bool,
     enable_ipv6: bool,
     auto_connect: bool,
-    relay_settings: Option<RelaySettings>,
+
+    settings: Option<Settings>,
 }
 
 #[derive(Debug)]
@@ -62,7 +68,11 @@ pub enum Pref {
 
 impl PreferencesModel {
     fn get_normal_relay_constraints(&self) -> Option<&RelayConstraints> {
-        if let Some(RelaySettings::Normal(relay_constraints)) = self.get_relay_settings() {
+        if let Some(RelaySettings::Normal(relay_constraints)) = self
+            .get_settings()
+            .as_ref()
+            .map(|settings| &settings.relay_settings)
+        {
             return Some(relay_constraints);
         }
         None
@@ -72,7 +82,11 @@ impl PreferencesModel {
     where
         F: FnOnce(&mut RelayConstraints),
     {
-        if let Some(RelaySettings::Normal(relay_constraints)) = self.get_mut_relay_settings() {
+        if let Some(RelaySettings::Normal(relay_constraints)) = self
+            .get_mut_settings()
+            .as_mut()
+            .map(|settings| &mut settings.relay_settings)
+        {
             func(relay_constraints);
 
             sender
@@ -93,9 +107,28 @@ impl PreferencesModel {
             .map(|relay_constraints| relay_constraints.wireguard_constraints.port.into())
     }
 
-    fn get_multihop(&self) -> bool {
+    fn is_multihop_enabled(&self) -> bool {
         self.get_normal_relay_constraints()
             .map(|relay_constraints| relay_constraints.wireguard_constraints.multihop())
+            .unwrap_or_default()
+    }
+
+    fn is_quantum_resistant_enabled(&self) -> bool {
+        self.get_settings()
+            .as_ref()
+            .map(|settings| {
+                matches!(
+                    settings.tunnel_options.wireguard.quantum_resistant,
+                    mullvad_types::wireguard::QuantumResistantState::On
+                )
+            })
+            .unwrap_or_default()
+    }
+
+    fn is_daita_enabled(&self) -> bool {
+        self.get_settings()
+            .as_ref()
+            .map(|settings| settings.tunnel_options.wireguard.daita.enabled)
             .unwrap_or_default()
     }
 
@@ -334,7 +367,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                                 },
                             },
 
-                            #[track = "model.changed(PreferencesModel::relay_settings())"]
+                            #[track = "model.changed(PreferencesModel::settings())"]
                             set_visible: !model.is_multihop_allowed(),
                         },
 
@@ -352,15 +385,15 @@ impl SimpleAsyncComponent for PreferencesModel {
                         add_suffix = &gtk::Switch {
                             set_valign: gtk::Align::Center,
 
-                            #[track = "model.changed(PreferencesModel::relay_settings())"]
+                            #[track = "model.changed(PreferencesModel::settings())"]
                             #[block_signal(multihop_active_notify_handler)]
-                            set_active: model.get_multihop(),
+                            set_active: model.is_multihop_enabled(),
 
                             connect_active_notify[sender] => move |this| {
                                 sender.input(PreferencesMsg::SetMultihop(this.is_active()));
                             } @multihop_active_notify_handler,
 
-                            #[track = "model.changed(PreferencesModel::relay_settings())"]
+                            #[track = "model.changed(PreferencesModel::settings())"]
                             set_sensitive: model.is_multihop_allowed(),
                         },
                     },
@@ -424,7 +457,7 @@ impl SimpleAsyncComponent for PreferencesModel {
             enable_ipv6: false,
             local_network_sharing: false,
             lockdown_mode: false,
-            relay_settings: None,
+            settings: None,
 
             tracker: Default::default(),
         };
@@ -450,11 +483,39 @@ impl SimpleAsyncComponent for PreferencesModel {
                 self.set_local_network_sharing(settings.allow_lan);
                 self.set_lockdown_mode(settings.block_when_disconnected);
                 self.set_enable_ipv6(settings.tunnel_options.generic.enable_ipv6);
-                self.set_relay_settings(Some(settings.relay_settings));
+                self.set_settings(Some(settings));
 
                 self.tunnel_protocol_selector
                     .emit(VariantSelectorMsg::SelectVariant(
                         self.get_tunnel_protocol(),
+                    ));
+
+                self.tunnel_protocol_selector
+                    .emit(VariantSelectorMsg::SetVariantMode(
+                        TunnelProtocol::OpenVPN.get_id(),
+                        {
+                            let mut need_to_disable_these_settings = vec![];
+
+                            if self.is_daita_enabled() {
+                                need_to_disable_these_settings.push(tr!("DAITA"));
+                            }
+                            if self.is_multihop_enabled() {
+                                need_to_disable_these_settings.push(tr!("Multihop"));
+                            }
+                            if self.is_quantum_resistant_enabled() {
+                                need_to_disable_these_settings
+                                    .push(tr!("Quantum-resistant tunnel"));
+                            }
+
+                            if need_to_disable_these_settings.is_empty() {
+                                VariantMode::Enabled
+                            } else {
+                                VariantMode::DisabledWithInfo(tr!(
+                                    "To select OpenVPN, please disable these settings: {}.",
+                                    need_to_disable_these_settings.join(", ")
+                                ))
+                            }
+                        },
                     ));
 
                 self.wireguard_port_selector
