@@ -15,17 +15,13 @@ impl WidgetTemplate for InfoButton {
             set_popover = &gtk::Popover {
                 set_position: gtk::PositionType::Bottom,
 
-                gtk::ScrolledWindow {
-                    set_propagate_natural_height: true,
-                    set_propagate_natural_width: true,
-
                     #[name = "info_label"]
                     gtk::Label {
                         set_wrap: true,
-                        set_max_width_chars: 42,
+                        set_margin_all: 6,
+                        set_max_width_chars: 50,
                         set_width_request: 300,
                     }
-                }
             }
         }
     }
