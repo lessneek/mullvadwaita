@@ -9,6 +9,7 @@ use crate::extensions::{ToStr, TunnelStateExt};
 use crate::mullvad::{self, DaemonConnector, Event};
 
 use crate::tr;
+use crate::ui::preferences::PreferencesInit;
 
 use chrono::prelude::*;
 use futures::FutureExt;
@@ -542,8 +543,9 @@ impl AsyncComponent for AppModel {
                     .launch(())
                     .forward(sender.input_sender(), identity),
                 preferences: PreferencesModel::builder()
-                    .transient_for(&*root)
-                    .launch(())
+                    .launch(PreferencesInit {
+                        parent: Some(root.widget_ref().clone()),
+                    })
                     .forward(sender.input_sender(), identity),
             }),
             account_action: Some(account_action),

@@ -31,7 +31,8 @@ static ALLOWED_LAN_NETS: [&str; 6] = [
 #[tracker::track]
 #[derive(Debug)]
 pub struct PreferencesModel {
-    window: adw::PreferencesWindow,
+    window: adw::PreferencesDialog,
+    parent: Option<gtk::Widget>,
 
     #[no_eq]
     tunnel_protocol_selector: Controller<VariantSelector<TunnelProtocol>>,
@@ -45,6 +46,11 @@ pub struct PreferencesModel {
     auto_connect: bool,
 
     settings: Option<Settings>,
+}
+
+#[derive(Debug)]
+pub struct PreferencesInit {
+    pub parent: Option<gtk::Widget>,
 }
 
 #[derive(Debug)]
@@ -146,16 +152,16 @@ impl PreferencesModel {
 
 #[relm4::component(async, pub)]
 impl SimpleAsyncComponent for PreferencesModel {
-    type Init = ();
+    type Init = PreferencesInit;
     type Input = PreferencesMsg;
     type Output = AppInput;
     type Widgets = PreferencesWidgets;
 
     view! {
-        adw::PreferencesWindow {
-            connect_close_request[sender] => move |_| {
+        adw::PreferencesDialog {
+            set_can_close: false,
+            connect_close_attempt[sender] => move |_| {
                 sender.input(PreferencesMsg::Close);
-                gtk::glib::Propagation::Stop
             },
             add = &adw::PreferencesPage {
                 add = &adw::PreferencesGroup {
@@ -443,7 +449,7 @@ impl SimpleAsyncComponent for PreferencesModel {
     }
 
     async fn init(
-        _: Self::Init,
+        init: Self::Init,
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
@@ -457,6 +463,7 @@ impl SimpleAsyncComponent for PreferencesModel {
 
         let model = PreferencesModel {
             window: root.clone(),
+            parent: init.parent,
             tunnel_protocol_selector,
             wireguard_port_selector,
             auto_connect: false,
@@ -482,8 +489,8 @@ impl SimpleAsyncComponent for PreferencesModel {
         log::debug!("PreferencesMsg: {message:#?}");
 
         match message {
-            PreferencesMsg::Show => self.window.present(),
-            PreferencesMsg::Close => self.window.set_visible(false),
+            PreferencesMsg::Show => self.window.present(self.parent.as_ref()),
+            PreferencesMsg::Close => self.window.force_close(),
             PreferencesMsg::UpdateSettings(settings) => {
                 self.set_auto_connect(settings.auto_connect);
                 self.set_local_network_sharing(settings.allow_lan);
