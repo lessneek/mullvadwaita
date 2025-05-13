@@ -55,6 +55,8 @@ pub enum PreferencesMsg {
     TunnelProtocolChanged(TunnelProtocol),
     WireGuardPortChanged(WireGuardPort),
     SetMultihop(bool),
+    TryEnableLockdownModeWithAlert,
+    SetLockdownMode(bool),
 }
 
 #[derive(Debug)]
@@ -330,7 +332,11 @@ impl SimpleAsyncComponent for PreferencesModel {
                             set_active: model.lockdown_mode,
 
                             connect_active_notify[sender] => move |this| {
-                                let _ = sender.output(AppInput::Set(Pref::LockdownMode(this.is_active())));
+                                if this.is_active() {
+                                    sender.input(PreferencesMsg::TryEnableLockdownModeWithAlert);
+                                } else {
+                                    sender.input(PreferencesMsg::SetLockdownMode(false));
+                                }
                             } @lockdown_mode_active_notify_handler,
                         },
                     },
@@ -535,6 +541,26 @@ impl SimpleAsyncComponent for PreferencesModel {
                 self.update_normal_relay_constraints(sender, |relay_constraints| {
                     relay_constraints.wireguard_constraints.use_multihop(value)
                 });
+            }
+            PreferencesMsg::TryEnableLockdownModeWithAlert => {
+                let lockdown_alertdialog =
+                    adw::AlertDialog::builder()
+                    .body(tr!("Attention: enabling this will always require a Mullvad VPN connection in order to reach the internet.\n\nThe app’s built-in kill switch is always on. This setting will additionally block the internet if clicking Disconnect or Quit."))
+                    .build();
+                lockdown_alertdialog
+                    .add_responses(&[("back", &tr!("Back")), ("enable", &tr!("Enable anyway"))]);
+                lockdown_alertdialog
+                    .set_response_appearance("enable", adw::ResponseAppearance::Destructive);
+                lockdown_alertdialog.set_default_response(Some("back"));
+                lockdown_alertdialog.connect_response(None, move |_, response| {
+                    sender.input(PreferencesMsg::SetLockdownMode(response == "enable"));
+                });
+                lockdown_alertdialog.present(Some(&self.window));
+            }
+            PreferencesMsg::SetLockdownMode(value) => {
+                self.set_lockdown_mode(value);
+                self.tracker |= Self::lockdown_mode(); // Force update the tracker to correctly update the view.
+                let _ = sender.output(AppInput::Set(Pref::LockdownMode(value)));
             }
         }
     }

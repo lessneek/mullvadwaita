@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 adw = { version = "0.7.2", optional = true, package = "libadwaita" }
 gtk = { version = "0.9", package = "gtk4" }
-relm4 = { version = "0.9", features = ["all", "libadwaita", "gnome_46"] }
+relm4 = { version = "0.9", features = ["all", "libadwaita", "gnome_47"] }
 relm4-components = "0.9"
 relm4-icons = "0.10.0-beta.2"
 tracker = "0.2"
