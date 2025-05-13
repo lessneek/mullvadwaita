@@ -19,12 +19,11 @@ use tokio::sync::mpsc::{self, Receiver, Sender};
 use futures::StreamExt;
 
 #[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
 #[allow(dead_code)]
 pub enum Event {
-    TunnelState(TunnelState),
-    Setting(Settings),
-    RelayList(RelayList),
+    TunnelState(Box<TunnelState>),
+    Setting(Box<Settings>),
+    RelayList(Box<RelayList>),
     AppVersionInfo(AppVersionInfo),
     Device(DeviceEvent),
     RemoveDevice(RemoveDeviceEvent),
@@ -54,10 +53,10 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
     let mut client = MullvadProxyClient::new().await?;
 
     let settings = client.get_settings().await?;
-    sender.send(Event::Setting(settings)).await?;
+    sender.send(Event::Setting(Box::new(settings))).await?;
 
     let state = client.get_tunnel_state().await?;
-    sender.send(Event::TunnelState(state)).await?;
+    sender.send(Event::TunnelState(Box::new(state))).await?;
 
     if let Ok(device) = client.get_device().await {
         sender
@@ -72,15 +71,15 @@ async fn events_listen(sender: &Sender<Event>) -> Result<()> {
         match event? {
             DaemonEvent::TunnelState(new_state) => {
                 log::trace!("{new_state:#?}");
-                sender.send(Event::TunnelState(new_state)).await?;
+                sender.send(Event::TunnelState(Box::new(new_state))).await?;
             }
             DaemonEvent::Settings(settings) => {
                 log::trace!("{settings:#?}");
-                sender.send(Event::Setting(settings)).await?;
+                sender.send(Event::Setting(Box::new(settings))).await?;
             }
             DaemonEvent::RelayList(relay_list) => {
                 log::trace!("{relay_list:#?}");
-                sender.send(Event::RelayList(relay_list)).await?;
+                sender.send(Event::RelayList(Box::new(relay_list))).await?;
             }
             DaemonEvent::AppVersionInfo(app_version_info) => {
                 log::trace!("{app_version_info:#?}");

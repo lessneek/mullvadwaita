@@ -45,7 +45,7 @@ pub enum AppInput {
 
 #[derive(Debug)]
 pub enum AppMsg {
-    DaemonEvent(Event),
+    DaemonEvent(Box<Event>),
     LoginError(String),
     CreateAccountError(String),
     Ignore,
@@ -197,7 +197,7 @@ impl AppModel {
 
             sender.oneshot_command(async move {
                 if let Ok(account_data) = daemon_connector.get_account_data(account_token).await {
-                    return AppMsg::DaemonEvent(Event::AccountData(account_data));
+                    return AppMsg::DaemonEvent(Box::new(Event::AccountData(account_data)));
                 }
                 AppMsg::Ignore
             });
@@ -683,9 +683,9 @@ impl AsyncComponent for AppModel {
             AppMsg::Ignore => {}
             AppMsg::DaemonEvent(event) => {
                 log::debug!("Daemon event: {:#?}", event);
-                match event {
+                match *event {
                     Event::TunnelState(new_tunnel_state) => {
-                        self.set_tunnel_state(Some(new_tunnel_state));
+                        self.set_tunnel_state(Some(*new_tunnel_state));
                         self.fetch_account_data(sender.clone());
                     }
                     Event::ConnectingToDaemon => self.set_state(AppState::ConnectingToDaemon),
@@ -747,7 +747,7 @@ async fn listen_to_mullvad_events(out: relm4::Sender<AppMsg>) {
     log::trace!("Listening for status updates...");
 
     while let Some(event) = events_rx.recv().await {
-        if let Err(msg) = out.send(AppMsg::DaemonEvent(event)) {
+        if let Err(msg) = out.send(AppMsg::DaemonEvent(Box::new(event))) {
             log::debug!("Can't send an app message {msg:?} because all receivers were dropped");
             break;
         }

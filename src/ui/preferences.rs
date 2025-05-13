@@ -57,7 +57,7 @@ pub struct PreferencesInit {
 pub enum PreferencesMsg {
     Show,
     Close,
-    UpdateSettings(Settings),
+    UpdateSettings(Box<Settings>),
     TunnelProtocolChanged(TunnelProtocol),
     WireGuardPortChanged(WireGuardPort),
     SetMultihop(bool),
@@ -496,7 +496,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                 self.set_local_network_sharing(settings.allow_lan);
                 self.set_lockdown_mode(settings.block_when_disconnected);
                 self.set_enable_ipv6(settings.tunnel_options.generic.enable_ipv6);
-                self.set_settings(Some(settings));
+                self.set_settings(Some(*settings));
 
                 self.tunnel_protocol_selector
                     .emit(VariantSelectorMsg::SelectVariant(
