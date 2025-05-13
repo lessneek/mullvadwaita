@@ -9,6 +9,7 @@ use crate::extensions::{ToStr, TunnelStateExt};
 use crate::mullvad::{self, DaemonConnector, Event};
 
 use crate::tr;
+use crate::ui::account::AccountInit;
 use crate::ui::preferences::PreferencesInit;
 
 use chrono::prelude::*;
@@ -539,8 +540,9 @@ impl AsyncComponent for AppModel {
         let model = AppModel {
             components: Some(AppComponents {
                 account: AccountModel::builder()
-                    .transient_for(&*root)
-                    .launch(())
+                    .launch(AccountInit {
+                        parent: Some(root.widget_ref().clone()),
+                    })
                     .forward(sender.input_sender(), identity),
                 preferences: PreferencesModel::builder()
                     .launch(PreferencesInit {

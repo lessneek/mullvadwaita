@@ -17,11 +17,17 @@ use super::widgets::InfoButton;
 #[tracker::track]
 #[derive(Debug, SmartDefault)]
 pub struct AccountModel {
-    window: adw::PreferencesWindow,
+    window: adw::PreferencesDialog,
+    parent: Option<gtk::Widget>,
 
     device_name: String,
     account_number: String,
     paid_until: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct AccountInit {
+    pub parent: Option<gtk::Widget>,
 }
 
 #[derive(Debug)]
@@ -34,18 +40,18 @@ pub enum AccountMsg {
 
 #[relm4::component(async, pub)]
 impl SimpleAsyncComponent for AccountModel {
-    type Init = ();
+    type Init = AccountInit;
     type Input = AccountMsg;
     type Output = AppInput;
     type Widgets = PreferencesWidgets;
 
     view! {
-        adw::PreferencesWindow {
-            set_title: Some(&tr!("Account")),
+        adw::PreferencesDialog {
+            set_title: &tr!("Account"),
             set_search_enabled: false,
-            connect_close_request[sender] => move |_| {
+            set_can_close: false,
+            connect_close_attempt[sender] => move |_| {
                 sender.input(AccountMsg::Close);
-                gtk::glib::Propagation::Stop
             },
             add = &adw::PreferencesPage {
                 add = &adw::PreferencesGroup {
@@ -121,12 +127,13 @@ impl SimpleAsyncComponent for AccountModel {
     }
 
     async fn init(
-        _: Self::Init,
+        init: Self::Init,
         root: Self::Root,
         sender: AsyncComponentSender<Self>,
     ) -> AsyncComponentParts<Self> {
         let model = AccountModel {
             window: root.clone(),
+            parent: init.parent,
             ..Default::default()
         };
 
@@ -139,8 +146,8 @@ impl SimpleAsyncComponent for AccountModel {
         self.reset();
 
         match message {
-            AccountMsg::Show => self.window.present(),
-            AccountMsg::Close => self.window.set_visible(false),
+            AccountMsg::Show => self.window.present(self.parent.as_ref()),
+            AccountMsg::Close => self.window.force_close(),
             AccountMsg::UpdateAccountAndDevice(account_and_device) => {
                 self.set_device_name(account_and_device.device.pretty_name());
                 self.set_account_number(account_and_device.account_number);
