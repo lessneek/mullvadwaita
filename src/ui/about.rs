@@ -1,10 +1,8 @@
 use crate::icon_names;
-
-use adw::prelude::*;
 use relm4::prelude::*;
 
-pub fn show_about_dialog(root: &impl IsA<gtk::Widget>) {
-    let dialog = adw::AboutDialog::builder()
+pub fn build_about_dialog() -> adw::AboutDialog {
+    adw::AboutDialog::builder()
         .application_icon(icon_names::BACKGROUND_APP_GHOST)
         .application_name("Mullvadwaita")
         .developer_name("Lessneek")
@@ -16,6 +14,6 @@ pub fn show_about_dialog(root: &impl IsA<gtk::Widget>) {
         .version(env!("CARGO_PKG_VERSION"))
         .developers(vec!["Lessneek"])
         .comments("Mullvad VPN daemon controller.")
-        .build();
-    dialog.present(Some(root));
+        .presentation_mode(adw::DialogPresentationMode::BottomSheet)
+        .build()
 }

@@ -52,10 +52,18 @@ pub enum AppMsg {
 }
 
 #[tracker::track]
-#[derive(SmartDefault)]
 pub struct AppModel {
     #[no_eq]
     state: AppState,
+
+    #[no_eq]
+    components: AppComponents,
+
+    #[do_not_track]
+    daemon_connector: DaemonConnector,
+
+    #[no_eq]
+    account_action: RelmAction<AccountAction>,
 
     #[no_eq]
     tunnel_state: Option<TunnelState>,
@@ -74,17 +82,9 @@ pub struct AppModel {
     tunnel_protocol: Option<String>,
     tunnel_in: Option<String>,
     tunnel_out: Option<String>,
-
-    #[no_eq]
-    components: Option<AppComponents>,
-
-    #[do_not_track]
-    daemon_connector: DaemonConnector,
-
-    #[no_eq]
-    account_action: Option<RelmAction<AccountAction>>,
 }
 
+#[derive(Debug)]
 pub struct AppComponents {
     account: AsyncController<AccountModel>,
     preferences: AsyncController<PreferencesModel>,
@@ -241,9 +241,7 @@ impl AppModel {
         }));
 
         if self.state_changed() {
-            if let Some(account_action) = &self.account_action {
-                account_action.set_enabled(self.is_logged_in());
-            }
+            self.account_action.set_enabled(self.is_logged_in());
 
             self.set_device_name(match self.get_state() {
                 AppState::LoggedIn(acc_and_dev) => Some(tr!(
@@ -538,7 +536,7 @@ impl AsyncComponent for AppModel {
         }
 
         let model = AppModel {
-            components: Some(AppComponents {
+            components: AppComponents {
                 account: AccountModel::builder()
                     .launch(AccountInit {
                         parent: Some(root.widget_ref().clone()),
@@ -549,9 +547,25 @@ impl AsyncComponent for AppModel {
                         parent: Some(root.widget_ref().clone()),
                     })
                     .forward(sender.input_sender(), identity),
-            }),
-            account_action: Some(account_action),
-            ..Default::default()
+            },
+            account_action,
+            account_data: None,
+            account_history: None,
+            banner_label: None,
+            city: None,
+            country: None,
+            state: Default::default(),
+            daemon_connector: Default::default(),
+            device_name: None,
+            hostname: None,
+            lockdown_mode: false,
+            time_left: None,
+            tunnel_in: None,
+            tunnel_out: None,
+            tunnel_protocol: None,
+            tunnel_state: None,
+            tunnel_state_label: None,
+            tracker: Default::default(),
         };
 
         let widgets = view_output!();
@@ -637,14 +651,10 @@ impl AsyncComponent for AppModel {
                 let _ = self.daemon_connector.disconnect().await;
             }
             AppInput::Account => {
-                if let Some(components) = self.get_components() {
-                    components.account.emit(AccountMsg::Show);
-                }
+                self.components.account.emit(AccountMsg::Show);
             }
             AppInput::Preferences => {
-                if let Some(components) = self.get_components() {
-                    components.preferences.emit(PreferencesMsg::Show);
-                }
+                self.components.preferences.emit(PreferencesMsg::Show);
             }
             AppInput::Set(pref) => match pref {
                 Pref::AutoConnect(value) => {
@@ -669,7 +679,9 @@ impl AsyncComponent for AppModel {
                         .ok();
                 }
             },
-            AppInput::About => about::show_about_dialog(&**root),
+            AppInput::About => {
+                about::build_about_dialog().present(Some(root.widget_ref()));
+            }
         }
     }
 
@@ -692,12 +704,9 @@ impl AsyncComponent for AppModel {
                     Event::Device(device_event) => match device_event.new_state {
                         DeviceState::LoggedIn(account_and_device) => {
                             self.set_state(AppState::LoggedIn(account_and_device.clone()));
-
-                            if let Some(components) = self.get_components() {
-                                components
-                                    .account
-                                    .emit(AccountMsg::UpdateAccountAndDevice(account_and_device));
-                            }
+                            self.components
+                                .account
+                                .emit(AccountMsg::UpdateAccountAndDevice(account_and_device));
                             self.fetch_account_data(sender.clone());
                         }
                         // TODO: process `revoked` state.
@@ -711,21 +720,15 @@ impl AsyncComponent for AppModel {
                     Event::RemoveDevice(_) => {}
                     Event::AccountData(account_data) => {
                         self.set_account_data(Some(account_data.clone()));
-
-                        if let Some(components) = self.get_components() {
-                            components
-                                .account
-                                .emit(AccountMsg::UpdateAccountData(account_data));
-                        }
+                        self.components
+                            .account
+                            .emit(AccountMsg::UpdateAccountData(account_data));
                     }
                     Event::Setting(settings) => {
                         self.set_lockdown_mode(settings.block_when_disconnected);
-
-                        if let Some(components) = self.get_components() {
-                            components
-                                .preferences
-                                .emit(PreferencesMsg::UpdateSettings(settings));
-                        }
+                        self.components
+                            .preferences
+                            .emit(PreferencesMsg::UpdateSettings(settings));
                     }
                     Event::AppVersionInfo(_) => {}
                     Event::RelayList(_) => {}
