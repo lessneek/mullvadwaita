@@ -1,6 +1,6 @@
-use std::str::FromStr;
-use relm4::prelude::*;
 use mullvad_types::constraints::Constraint;
+use relm4::prelude::*;
+use std::str::FromStr;
 use talpid_types::net::TunnelType;
 use tr::tr;
 
@@ -13,7 +13,6 @@ use super::variant_selector::{Unique, Variant, VariantValue};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TunnelProtocol {
-    Automatic,
     WireGuard,
     OpenVPN,
 }
@@ -22,7 +21,6 @@ impl TunnelProtocol {
     pub fn get_all_variants() -> Vec<Variant<Self>> {
         use TunnelProtocol::*;
         vec![
-            label_variant(Automatic, tr!("Automatic")),
             label_variant(WireGuard, tr!("WireGuard")),
             label_variant(OpenVPN, tr!("OpenVPN")),
         ]
@@ -37,29 +35,26 @@ impl Unique for TunnelProtocol {
     fn get_id(&self) -> Self::Id {
         use TunnelProtocol::*;
         match self {
-            Automatic => 0,
-            WireGuard => 1,
-            OpenVPN => 2,
+            WireGuard => 0,
+            OpenVPN => 1,
         }
     }
 }
 
-impl From<Constraint<TunnelType>> for TunnelProtocol {
-    fn from(value: Constraint<TunnelType>) -> Self {
+impl From<TunnelType> for TunnelProtocol {
+    fn from(value: TunnelType) -> Self {
         match value {
-            Constraint::Any => TunnelProtocol::Automatic,
-            Constraint::Only(TunnelType::Wireguard) => TunnelProtocol::WireGuard,
-            Constraint::Only(TunnelType::OpenVpn) => TunnelProtocol::OpenVPN,
+            TunnelType::Wireguard => TunnelProtocol::WireGuard,
+            TunnelType::OpenVpn => TunnelProtocol::OpenVPN,
         }
     }
 }
 
-impl From<TunnelProtocol> for Constraint<TunnelType> {
+impl From<TunnelProtocol> for TunnelType {
     fn from(val: TunnelProtocol) -> Self {
         match val {
-            TunnelProtocol::Automatic => Constraint::Any,
-            TunnelProtocol::WireGuard => Constraint::Only(TunnelType::Wireguard),
-            TunnelProtocol::OpenVPN => Constraint::Only(TunnelType::OpenVpn),
+            TunnelProtocol::WireGuard => TunnelType::Wireguard,
+            TunnelProtocol::OpenVPN => TunnelType::OpenVpn,
         }
     }
 }

@@ -143,7 +143,7 @@ impl PreferencesModel {
     fn is_multihop_allowed(&self) -> bool {
         self.get_tunnel_protocol()
             .map(|value| match value {
-                TunnelProtocol::Automatic | TunnelProtocol::WireGuard => true,
+                TunnelProtocol::WireGuard => true,
                 TunnelProtocol::OpenVPN => false,
             })
             .unwrap_or_default()
