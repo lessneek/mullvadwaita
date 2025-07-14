@@ -1204,9 +1204,9 @@ dependencies = [
 
 [[package]]
 name = "i18n-build"
-version = "0.10.1"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5791d5433f8b02185a12d7974190136f25c8044bdf20567c024b9b9e3953aed0"
+checksum = "d8fbea98b561d2e9bd660781009f8a4696cc86e01f2f48b8e2e3cc27e76ef8d0"
 dependencies = [
  "anyhow",
  "i18n-config",
