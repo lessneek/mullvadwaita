@@ -171,7 +171,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                     add = &adw::SwitchRow {
                         set_title: &tr!("Auto-connect"),
                         add_prefix = &gtk::Image {
-                            set_icon_name: Some(icon_names::WIRED_LOCK_CLOSED),
+                            set_icon_name: Some(icon_names::shipped::WIRED_LOCK_CLOSED),
                         },
                         set_subtitle: &tr!("Automatically connect to a server when the app launches."),
 
@@ -188,7 +188,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                     add = &adw::ActionRow {
                         set_title: &tr!("Local network sharing"),
                         add_prefix = &gtk::Image {
-                            set_icon_name: Some(icon_names::NETWORK_WORKGROUP),
+                            set_icon_name: Some(icon_names::shipped::NETWORK_WORKGROUP),
                         },
                         set_activatable: true,
 
@@ -230,7 +230,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                     add = &adw::ActionRow {
                         set_title: &tr!("Enable IPv6"),
                         add_prefix = &gtk::Image {
-                            set_icon_name: Some(icon_names::GLOBE_ALT2),
+                            set_icon_name: Some(icon_names::shipped::GLOBE_ALT2),
                         },
                         set_activatable: true,
 
@@ -271,7 +271,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                     add = &adw::ActionRow {
                         set_title: &tr!("Kill switch"),
                         add_prefix = &gtk::Image {
-                            set_icon_name: Some(icon_names::STOP_SIGN_LARGE),
+                            set_icon_name: Some(icon_names::shipped::STOP_SIGN_LARGE),
                         },
                         set_activatable: true,
 
@@ -307,7 +307,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                         set_activatable: true,
 
                         add_prefix = &gtk::Image {
-                            set_icon_name: Some(icon_names::SHIELD_FULL),
+                            set_icon_name: Some(icon_names::shipped::SHIELD_FULL),
                         },
 
                         connect_activated[lockdown_mode_switch] => move |_| {
@@ -361,7 +361,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                         },
 
                         add_prefix = &gtk::Image {
-                            set_icon_name: Some(icon_names::FUNCTION_THIRD_ORDER_HORIZONTAL),
+                            set_icon_name: Some(icon_names::shipped::FUNCTION_THIRD_ORDER_HORIZONTAL),
                         },
 
                         #[template]
@@ -369,7 +369,7 @@ impl SimpleAsyncComponent for PreferencesModel {
                         add_suffix = &InfoButton {
                             #[template_child]
                             info_menu_button {
-                                set_icon_name: icon_names::WARNING_OUTLINE,
+                                set_icon_name: icon_names::shipped::WARNING_OUTLINE,
                             },
 
                             #[template_child]

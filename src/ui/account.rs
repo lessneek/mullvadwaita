@@ -88,7 +88,7 @@ impl SimpleAsyncComponent for AccountModel {
                         set_editable: false,
 
                         add_suffix = &gtk::Button {
-                            set_icon_name: icon_names::COPY,
+                            set_icon_name: icon_names::shipped::COPY,
                             set_valign: gtk::Align::Center,
                             set_css_classes: &["flat", "image-button"],
                             connect_clicked[root, account_number] => move |_| {

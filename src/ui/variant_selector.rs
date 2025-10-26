@@ -404,7 +404,7 @@ impl<T: VariantValue> VariantSelector<T> {
                     add_suffix = &InfoButton {
                         #[template_child]
                         info_menu_button {
-                            set_icon_name: icon_names::WARNING_OUTLINE,
+                            set_icon_name: icon_names::shipped::WARNING_OUTLINE,
                         },
 
                         set_visible: false,
@@ -432,7 +432,7 @@ impl<T: VariantValue> VariantSelector<T> {
                             add_css_class: "property",
 
                             add_suffix = &gtk::Button {
-                                set_icon_name: icon_names::EDIT,
+                                set_icon_name: icon_names::shipped::EDIT,
                                 set_valign: gtk::Align::Center,
                                 set_css_classes: &["flat"],
 

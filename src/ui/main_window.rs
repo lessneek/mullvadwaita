@@ -27,7 +27,7 @@ impl WidgetTemplate for MainWindow {
 
                     #[name = "primary_menu_button"]
                     pack_end = &gtk::MenuButton {
-                        set_icon_name: icon_names::MENU_LARGE,
+                        set_icon_name: icon_names::shipped::MENU_LARGE,
                     },
                 },
 

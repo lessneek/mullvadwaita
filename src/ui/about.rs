@@ -3,7 +3,7 @@ use relm4::prelude::*;
 
 pub fn build_about_dialog() -> adw::AboutDialog {
     adw::AboutDialog::builder()
-        .application_icon(icon_names::BACKGROUND_APP_GHOST)
+        .application_icon(icon_names::shipped::BACKGROUND_APP_GHOST)
         .application_name("Mullvadwaita")
         .developer_name("Lessneek")
         .website("Website")

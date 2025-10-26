@@ -7,7 +7,7 @@ impl WidgetTemplate for InfoButton {
     view! {
         #[name = "info_menu_button"]
         gtk::MenuButton {
-            set_icon_name: icon_names::INFO_OUTLINE,
+            set_icon_name: icon_names::shipped::INFO_OUTLINE,
             set_valign: gtk::Align::Center,
             set_css_classes: &["flat"],
 
