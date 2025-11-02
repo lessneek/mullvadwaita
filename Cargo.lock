@@ -512,7 +512,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -850,7 +850,7 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1207,18 +1207,18 @@ dependencies = [
 
 [[package]]
 name = "i18n-embed"
-version = "0.15.4"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "669ffc2c93f97e6ddf06ddbe999fcd6782e3342978bb85f7d3c087c7978404c4"
+checksum = "a217bbb075dcaefb292efa78897fc0678245ca67f265d12c351e42268fcb0305"
 dependencies = [
  "fluent-langneg",
  "gettext",
  "i18n-embed-impl",
  "intl-memoizer",
- "locale_config",
  "log",
  "parking_lot",
  "rust-embed",
+ "sys-locale",
  "thiserror 1.0.69",
  "tr",
  "unic-langid",
@@ -2265,7 +2265,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2482,6 +2482,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
 
 [[package]]
+name = "sys-locale"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8eab9a99a024a169fe8a903cf9d4a3b3601109bcc13bd9e3c6fff259138626c4"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "system-deps"
 version = "7.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2530,7 +2539,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3041,7 +3050,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
